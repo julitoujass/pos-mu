@@ -22,6 +22,7 @@ import {
     Save
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
 
 export default function CajaPage() {
     const [cashStatus, setCashStatus] = useState<CashStatusResponse | null>(null)
@@ -329,7 +330,7 @@ function CloseRegisterForm({ status, onSuccess }: { status: CashStatusResponse, 
             onSuccess()
         } catch (err) {
             console.error(err)
-            alert('Error al cerrar caja')
+            toast.error('Error al cerrar caja')
         } finally {
             setLoading(false)
         }
@@ -394,7 +395,7 @@ function MovementModal({ initialType, onClose, onSuccess }: { initialType: 'ingr
         e.preventDefault()
 
         if (type !== 'ingreso' && type !== 'egreso') {
-            alert('Tipo de movimiento inválido')
+            toast.error('Tipo de movimiento inválido')
             return
         }
         setLoading(true)
@@ -408,7 +409,7 @@ function MovementModal({ initialType, onClose, onSuccess }: { initialType: 'ingr
             onClose()
         } catch (err) {
             console.error(err)
-            alert('Error al registrar movimiento')
+            toast.error('Error al registrar movimiento')
         } finally {
             setLoading(false)
         }

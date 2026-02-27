@@ -19,6 +19,7 @@ import {
     UserPlus
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
 import {
     fetchProducts,
     fetchClients,
@@ -133,7 +134,7 @@ export default function NewSalePage() {
         } else {
             // Optional: Fuzzy search or show error
             // simple toast substitute
-            alert(`No se encontró producto con SKU/ID: ${term}`)
+            toast.error(`No se encontró producto con SKU/ID: ${term}`)
             setSkuInput('')
         }
     }
@@ -145,7 +146,7 @@ export default function NewSalePage() {
             if (existing) {
                 // Check stock
                 if (existing.quantity + 1 > existing.stockMax) {
-                    alert(`Stock insuficiente. Solo hay ${existing.stockMax} unidades.`)
+                    toast.error(`Stock insuficiente. Solo hay ${existing.stockMax} unidades.`)
                     return prev
                 }
                 return prev.map(item =>
@@ -156,7 +157,7 @@ export default function NewSalePage() {
             } else {
                 // Check stock for new item
                 if (variant.stock <= 0) {
-                    alert(`Producto sin stock disponible.`)
+                    toast.error(`Producto sin stock disponible.`)
                     return prev
                 }
                 return [...prev, {
@@ -181,7 +182,7 @@ export default function NewSalePage() {
                     const newQty = item.quantity + delta
                     if (newQty <= 0) return null // Filter out later
                     if (newQty > item.stockMax) {
-                        alert(`Stock insuficiente. Máximo: ${item.stockMax}`)
+                        toast.error(`Stock insuficiente. Máximo: ${item.stockMax}`)
                         return item
                     }
                     return { ...item, quantity: newQty }
