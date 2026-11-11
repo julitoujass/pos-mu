@@ -2,12 +2,24 @@
 
 import { getErrorMessage } from '@/lib/errors'
 import { useState, useEffect } from 'react'
-import { fetchUsers, fetchRoles, updateUserRole, UsuarioResponse, RoleResponse } from '@/lib/api'
+import { fetchUsers, fetchRoles, updateUserRole, updateUserActive, UsuarioResponse, RoleResponse } from '@/lib/api'
+import { AdminOnly } from '@/components/auth/admin-only'
+import { useCurrentUser } from '@/lib/auth/current-user'
 import { Users, UserCog, ShieldCheck } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
 export default function UsuariosPage() {
+    return (
+        <AdminOnly>
+            <UsuariosContent />
+        </AdminOnly>
+    )
+}
+
+function UsuariosContent() {
+    const { user: currentUser } = useCurrentUser()
+    const [pendingId, setPendingId] = useState<string | null>(null)
     const [users, setUsers] = useState<UsuarioResponse[]>([])
     const [roles, setRoles] = useState<RoleResponse[]>([])
     const [loading, setLoading] = useState(true)
@@ -28,23 +40,46 @@ export default function UsuariosPage() {
         loadData()
     }, [])
 
-    async function handleRoleChange(userId: string, targetRoleId: number) {
+    function replaceUser(updated: UsuarioResponse) {
+        setUsers(prev => prev.map(u => (u.id === updated.id ? { ...u, ...updated } : u)))
+    }
+
+    async function handleRoleChange(user: UsuarioResponse, targetRoleId: number) {
+        const newRole = roles.find(r => r.id === targetRoleId)
+        if (!newRole || newRole.id === user.roles?.id) return
+        const fullName = `${user.nombre} ${user.apellido || ''}`.trim()
+        if (!window.confirm(`¿Cambiar el rol de ${fullName} a ${newRole.nombre}?`)) return
+
+        setPendingId(user.id)
         try {
-            toast.loading("Actualizando rol...")
-            await updateUserRole(userId, targetRoleId)
-            toast.dismiss()
+            const updated = await updateUserRole(user.id, targetRoleId)
+            replaceUser(updated)
             toast.success("Rol actualizado correctamente")
-            // Refresh local state
-            setUsers(prev => prev.map(u => {
-                if (u.id === userId) {
-                    const newRole = roles.find(r => r.id === targetRoleId)
-                    return { ...u, roles: newRole || u.roles }
-                }
-                return u
-            }))
         } catch (error: unknown) {
-            toast.dismiss()
+            // State is only updated on success, so the select reverts by itself.
             toast.error(getErrorMessage(error, "Error al actualizar rol"))
+        } finally {
+            setPendingId(null)
+        }
+    }
+
+    async function handleActiveChange(user: UsuarioResponse) {
+        const activo = !user.activo
+        const fullName = `${user.nombre} ${user.apellido || ''}`.trim()
+        const question = activo
+            ? `¿Reactivar a ${fullName}?`
+            : `¿Desactivar a ${fullName}? No va a poder usar el sistema.`
+        if (!window.confirm(question)) return
+
+        setPendingId(user.id)
+        try {
+            const updated = await updateUserActive(user.id, activo)
+            replaceUser(updated)
+            toast.success(activo ? "Usuario activado" : "Usuario desactivado")
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error, "Error al cambiar el estado del usuario"))
+        } finally {
+            setPendingId(null)
         }
     }
 
@@ -97,9 +132,23 @@ export default function UsuariosPage() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
+                                        <div className="flex items-center gap-3">
                                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${user.activo ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
                                             {user.activo ? 'Activo' : 'Inactivo'}
                                         </span>
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={user.activo}
+                                            aria-label={user.activo ? 'Desactivar usuario' : 'Activar usuario'}
+                                            title={user.id === currentUser?.id ? 'No podés desactivarte a vos mismo' : undefined}
+                                            disabled={user.id === currentUser?.id || pendingId === user.id}
+                                            onClick={() => handleActiveChange(user)}
+                                            className={`relative h-6 w-11 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${user.activo ? 'bg-brand' : 'bg-muted-foreground/40'}`}
+                                        >
+                                            <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${user.activo ? 'translate-x-5' : ''}`} />
+                                        </button>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 text-muted-foreground">
                                         {new Date(user.created_at).toLocaleDateString()}
@@ -110,7 +159,9 @@ export default function UsuariosPage() {
                                             <select
                                                 className="bg-transparent border border-input rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand focus:border-transparent min-w-[140px]"
                                                 value={user.roles?.id || ''}
-                                                onChange={(e) => handleRoleChange(user.id, parseInt(e.target.value))}
+                                                disabled={user.id === currentUser?.id || pendingId === user.id}
+                                                title={user.id === currentUser?.id ? 'No podés cambiar tu propio rol' : undefined}
+                                                onChange={(e) => handleRoleChange(user, parseInt(e.target.value))}
                                             >
                                                 {roles.map(r => (
                                                     <option key={r.id} value={r.id} className="bg-background text-foreground">
