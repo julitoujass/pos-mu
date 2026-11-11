@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# pos-mu
 
-## Getting Started
+Sistema POS (punto de venta) web de **Mundo Uniforme**, construido con Next.js (App Router), React 19, TypeScript y TailwindCSS 4. Cubre ventas, caja, productos y variantes, catálogos, clientes, reportes y usuarios.
 
-First, run the development server:
+## Relación con `admin-mu`
+
+Esta aplicación es el frontend del backend FastAPI **`admin-mu`**. El navegador nunca llama directamente al backend: todas las solicitudes pasan por un proxy interno (`src/app/api/python/[...path]/route.ts`) que las reenvía a `BACKEND_API_URL`. La autenticación se resuelve con Supabase Auth y el JWT se envía en el header `Authorization`.
+
+## Requisitos
+
+- Node.js 22 o superior
+- npm
+- Un proyecto de Supabase (Auth)
+- El backend `admin-mu` en ejecución (por defecto en `http://127.0.0.1:8000`)
+
+## Puesta en marcha
 
 ```bash
+npm install
+# crear .env.local con las variables descritas abajo
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+La aplicación queda disponible en http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Variables de entorno
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Ámbito | Descripción |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Pública (navegador) | URL del proyecto de Supabase, con la forma `https://<project-ref>.supabase.co`. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Pública (navegador) | Clave publicable de Supabase (`<publishable-key>`). |
+| `BACKEND_API_URL` | Solo servidor | URL base de la API de `admin-mu` (por ejemplo `http://127.0.0.1:8000/api/v1`). Es obligatoria en producción; en desarrollo se usa ese valor por defecto. |
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+| Comando | Descripción |
+|---|---|
+| `npm run dev` | Servidor de desarrollo. |
+| `npm run build` | Build de producción. |
+| `npm run lint` | Análisis estático con ESLint. |
+| `npm run typecheck` | Verificación de tipos con TypeScript. |
+| `npm test` | Ejecuta las pruebas con Vitest. |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Documentación adicional
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Ver [`AGENTS.md`](./AGENTS.md) para la arquitectura, los módulos, los roles y las convenciones del proyecto.

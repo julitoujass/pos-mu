@@ -80,19 +80,28 @@ src/
 │   └── ui/skeleton.tsx            # Componente de skeleton loader
 ├── lib/
 │   ├── api.ts                     # Todas las funciones fetch + types TypeScript
+│   ├── errors.ts                  # getErrorMessage(error, fallback) para bloques catch
+│   ├── errors.test.ts             # Tests de getErrorMessage
 │   └── supabase/
 │       ├── client.ts              # createClient() para uso client-side
 │       ├── server.ts              # createClient() para uso server-side
 │       └── middleware.ts          # updateSession() para refresh de JWT
-└── middleware.ts                  # Middleware global: protege rutas con Supabase
+└── proxy.ts                       # Proxy de Next 16 (antes middleware.ts): protege rutas con Supabase
+
+# Raíz del repositorio (además de la configuración de Next/TypeScript/ESLint)
+vitest.config.ts                   # Vitest (entorno node, alias @/ → src/)
+.env.example                       # Plantilla de variables de entorno (sin valores reales)
+.github/workflows/ci.yml           # CI: lint, typecheck, test y build
 ```
+
+Los tests viven junto al código que prueban (`*.test.ts`), por ejemplo `src/app/api/python/[...path]/route.test.ts` para el proxy de API.
 
 ---
 
 ## Autenticación
 
 - **Proveedor:** Supabase Auth (email/password)
-- **Protección de rutas:** El `middleware.ts` raíz llama a `updateSession()` en cada request (excepto assets estáticos e imágenes). Si no hay sesión válida, el usuario es redirigido al login.
+- **Protección de rutas:** El `src/proxy.ts` (convención `proxy` de Next 16, que reemplaza a `middleware.ts`; exporta la función `proxy`) llama a `updateSession()` en cada request (excepto assets estáticos e imágenes). Si no hay sesión válida, el usuario es redirigido al login.
 - **JWT en API calls:** `getAuthHeaders()` en `api.ts` obtiene el `access_token` de la sesión activa y lo pone como `Authorization: Bearer`.
 - **Logout:** `supabase.auth.signOut()` desde el sidebar → redirect a `/`.
 
@@ -100,17 +109,18 @@ src/
 - El backend valida el token con `supabase.auth.get_user()` y obtiene el rol desde `perfiles → roles` (cache en memoria de 5 min; si falla, el rol por defecto es `empleado`). Ver `admin-mu/app/api/auth_deps.py`.
 - **Solo admin** (`RoleChecker(["admin"])`, responde 403): `/reportes/*`, `/usuarios/*` (excepto `/usuarios/me`), `DELETE /productos/{id}` y `DELETE /productos/variante/{id}`. El resto de endpoints solo exige sesión válida (incluidas las escrituras de catálogos).
 - En el front, `dashboard/layout.tsx` llama a `fetchMe()` y oculta los ítems `adminOnly` (Reportes, Usuarios) si el rol no es `admin`. Las páginas no tienen guard propio: la protección real es el 403 del backend. `productos/page.tsx` también usa `fetchMe()` para mostrar los botones de borrado solo a admin.
-- El middleware de Next (`lib/supabase/middleware.ts`) solo verifica sesión, no rol.
+- El proxy de Next (`src/proxy.ts`, que usa el helper `lib/supabase/middleware.ts`) solo verifica sesión, no rol.
 
 ---
 
 ## Variables de Entorno (`.env.local`)
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://pwzhrsdmjweoemtfkmrl.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_SvaSFGSeNf3N9yd5p7VJAQ_i9IlgX0K
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<publishable-key>
+BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 ```
-El backend FastAPI no requiere variables de entorno en este repo (la URL está hardcodeada en el proxy).
+`BACKEND_API_URL` es solo de servidor y la usa el proxy de API (`src/app/api/python/[...path]/route.ts`). Es obligatoria en producción; en desarrollo, si falta, se usa `http://127.0.0.1:8000/api/v1`. Las barras finales se eliminan. Hay una plantilla en `.env.example`.
 
 ---
 
@@ -287,6 +297,7 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 5. **Formateo de números:** `toLocaleString('es-AR')` para pesos argentinos.
 6. **Skeleton loaders:** Usar el componente `<Skeleton>` de `@/components/ui/skeleton` mientras cargan los datos.
 7. **Toasts:** Usar `toast.error()` / `toast.success()` de **Sonner** para feedback al usuario.
+8. **Bloques `catch`:** Usar `catch (error: unknown)` (nunca `any`) y obtener el mensaje con `getErrorMessage(error, 'mensaje por defecto')` de `@/lib/errors`.
 
 ---
 
@@ -314,6 +325,10 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 ```bash
 # Desarrollo (desde c:\Proyectos\Personal\pos-mu)
 npm run dev        # Inicia Next.js en puerto 3000 (o el siguiente libre)
+npm run lint       # ESLint (debe terminar sin errores ni warnings)
+npm run typecheck  # tsc --noEmit
+npm test           # Vitest (una pasada); npm run test:watch para modo watch
+npm run build      # Build de producción
 
 # El backend FastAPI debe estar corriendo en paralelo:
 # cd c:\Proyectos\Personal\admin-mu
