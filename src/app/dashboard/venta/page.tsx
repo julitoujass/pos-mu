@@ -1,5 +1,6 @@
 'use client'
 
+import { getErrorMessage } from '@/lib/errors'
 import { useState, useEffect, useRef } from 'react'
 import {
     Barcode,
@@ -28,7 +29,6 @@ import {
     Client,
     SaleCreate
 } from '@/lib/api'
-import { useRouter } from 'next/navigation'
 
 interface CartItem {
     variantId: string
@@ -55,10 +55,9 @@ interface SearchableVariant {
 }
 
 export default function NewSalePage() {
-    const router = useRouter()
 
     // Data States
-    const [products, setProducts] = useState<Product[]>([])
+    const [, setProducts] = useState<Product[]>([])
     const [searchableVariants, setSearchableVariants] = useState<SearchableVariant[]>([])
     const [clients, setClients] = useState<Client[]>([])
     const [showClientModal, setShowClientModal] = useState(false)
@@ -110,8 +109,8 @@ export default function NewSalePage() {
 
                 // Focus input on load
                 setTimeout(() => skuInputRef.current?.focus(), 100)
-            } catch (err: any) {
-                setError(err.message || 'Error cargando datos')
+            } catch (err: unknown) {
+                setError(getErrorMessage(err, 'Error cargando datos'))
             } finally {
                 setLoadingData(false)
             }
@@ -247,8 +246,8 @@ export default function NewSalePage() {
             setTimeout(() => setSuccessMsg(null), 3000)
             skuInputRef.current?.focus()
 
-        } catch (err: any) {
-            setError(err.message || 'Error al procesar la venta')
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, 'Error al procesar la venta'))
         } finally {
             setProcessing(false)
         }

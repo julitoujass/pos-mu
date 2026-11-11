@@ -19,7 +19,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { fetchMe, MeResponse } from '@/lib/api'
+import { fetchMe } from '@/lib/api'
 
 const sidebarItems = [
     { name: 'Panel Principal', href: '/dashboard', icon: LayoutDashboard },

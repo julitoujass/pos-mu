@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ShoppingCart, Users, DollarSign, Activity, AlertCircle } from 'lucide-react'
 import { fetchSalesToday, fetchCashStatus, SaleResponse, CashStatusResponse } from '@/lib/api'

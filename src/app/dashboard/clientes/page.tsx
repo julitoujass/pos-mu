@@ -1,5 +1,6 @@
 'use client'
 
+import { getErrorMessage } from '@/lib/errors'
 import { useState, useEffect } from 'react'
 import { Users, Plus, Search, Loader2, AlertCircle, Pencil, Mail, Phone, MapPin } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -8,8 +9,7 @@ import {
     createClient,
     updateClient,
     Client,
-    ClientCreate,
-    ClientUpdate
+    ClientCreate
 } from '@/lib/api'
 
 export default function ClientsPage() {
@@ -28,8 +28,8 @@ export default function ClientsPage() {
             setLoading(true)
             const data = await fetchClients(query)
             setClients(data)
-        } catch (err: any) {
-            setError(err.message || 'Error al cargar clientes')
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, 'Error al cargar clientes'))
         } finally {
             setLoading(false)
         }

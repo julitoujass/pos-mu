@@ -1,5 +1,6 @@
 'use client'
 
+import { getErrorMessage } from '@/lib/errors'
 import { useState, useEffect } from 'react'
 import { Plus, Loader2, Edit, Trash2, Bookmark, Tags, AlertCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -53,8 +54,8 @@ export default function CatalogosPage() {
             ])
             setMarcas(marcasData)
             setCategorias(categoriasData)
-        } catch (err: any) {
-            setError(err.message || 'Error al cargar catálogos')
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, 'Error al cargar catálogos'))
         } finally {
             setLoading(false)
         }
@@ -93,8 +94,8 @@ export default function CatalogosPage() {
             }
             toast.success(`${deleteItem.type === 'marcas' ? 'Marca' : 'Categoría'} eliminada exitosamente.`)
             setDeleteItem(null)
-        } catch (err: any) {
-            toast.error(err.message || 'Error al eliminar')
+        } catch (err: unknown) {
+            toast.error(getErrorMessage(err, 'Error al eliminar'))
         } finally {
             setIsDeleting(false)
         }
@@ -297,8 +298,8 @@ function MarcaFormModal({ initialData, onClose, onSuccess }: { initialData: Marc
                 const res = await createMarca(form)
                 onSuccess(res)
             }
-        } catch (err: any) {
-            setError(err.message || 'Ocurrió un error al guardar')
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, 'Ocurrió un error al guardar'))
         } finally {
             setLoading(false)
         }
@@ -403,8 +404,8 @@ function CategoriaFormModal({ initialData, onClose, onSuccess }: { initialData: 
                 const res = await createCategoria(form)
                 onSuccess(res)
             }
-        } catch (err: any) {
-            setError(err.message || 'Ocurrió un error al guardar')
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, 'Ocurrió un error al guardar'))
         } finally {
             setLoading(false)
         }

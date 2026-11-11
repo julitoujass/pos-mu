@@ -1,8 +1,9 @@
 'use client'
 
+import { getErrorMessage } from '@/lib/errors'
 import { useState, useEffect } from 'react'
 import { fetchUsers, fetchRoles, updateUserRole, UsuarioResponse, RoleResponse } from '@/lib/api'
-import { Users, UserCog, ShieldCheck, Loader2 } from 'lucide-react'
+import { Users, UserCog, ShieldCheck } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
@@ -41,9 +42,9 @@ export default function UsuariosPage() {
                 }
                 return u
             }))
-        } catch (error: any) {
+        } catch (error: unknown) {
             toast.dismiss()
-            toast.error(error.message || "Error al actualizar rol")
+            toast.error(getErrorMessage(error, "Error al actualizar rol"))
         }
     }
 

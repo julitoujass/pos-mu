@@ -1,5 +1,6 @@
 'use client'
 
+import { getErrorMessage } from '@/lib/errors'
 import { useState, useEffect, useCallback } from 'react'
 import {
     fetchReporteVentas,
@@ -15,7 +16,6 @@ import {
     Package,
     Banknote,
     AlertCircle,
-    Loader2,
     RefreshCw,
     Calendar,
     ArrowUpRight,
@@ -68,8 +68,8 @@ export default function ReportesPage() {
             setVentas(v)
             setTopProductos(tp)
             setCajas(c)
-        } catch (err: any) {
-            setError(err?.message || 'Error al cargar reportes')
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, 'Error al cargar reportes'))
         } finally {
             setLoading(false)
         }

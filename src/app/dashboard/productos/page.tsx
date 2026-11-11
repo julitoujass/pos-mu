@@ -1,7 +1,8 @@
 'use client'
 
+import { getErrorMessage } from '@/lib/errors'
 import { useState, useEffect } from 'react'
-import { Package, Plus, ChevronDown, ChevronUp, AlertCircle, Loader2, Edit, Pencil, Search, Trash2, PlusCircle, MinusCircle } from 'lucide-react'
+import { Package, Plus, ChevronDown, ChevronUp, AlertCircle, Loader2, Pencil, Search, Trash2, PlusCircle, MinusCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import {
@@ -15,11 +16,9 @@ import {
     deleteVariant,
     Product,
     ProductCreate,
-    ProductUpdate,
     VariantCreate,
     VariantUpdate,
     Variant,
-    StockAdjust,
     fetchMe
 } from '@/lib/api'
 
@@ -55,8 +54,8 @@ export default function ProductsPage() {
             setLoading(true)
             const data = await fetchProducts()
             setProducts(data)
-        } catch (err: any) {
-            const msg = err?.message || 'Error desconocido'
+        } catch (err: unknown) {
+            const msg = getErrorMessage(err, 'Error desconocido')
             setError(`Error al cargar productos: ${msg}`)
             console.error(err)
         } finally {
@@ -70,7 +69,7 @@ export default function ProductsPage() {
             try {
                 const me = await fetchMe();
                 setUserRole(me.rol);
-            } catch (e) {
+            } catch {
                 // Ignore
             }
         }
@@ -116,8 +115,8 @@ export default function ProductsPage() {
             }
             setDeleteTarget(null)
             loadProducts()
-        } catch (err: any) {
-            toast.error(err?.message || 'Error al eliminar')
+        } catch (err: unknown) {
+            toast.error(getErrorMessage(err, 'Error al eliminar'))
         } finally {
             setDeleting(false)
         }
@@ -422,8 +421,8 @@ function ProductModal({ mode, initialData, onClose, onSuccess }: ProductModalPro
                 await createProduct(form)
             }
             onSuccess()
-        } catch (err: any) {
-            setError(err?.message || 'Ocurrió un error inesperado')
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, 'Ocurrió un error inesperado'))
         } finally {
             setLoading(false)
         }
@@ -527,8 +526,8 @@ function VariantModal({ mode, initialData, productId, onClose, onSuccess }: Vari
                 await createVariant(form)
             }
             onSuccess()
-        } catch (err: any) {
-            setError(err?.message || 'Ocurrió un error inesperado')
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, 'Ocurrió un error inesperado'))
         } finally {
             setLoading(false)
         }
@@ -678,8 +677,8 @@ function StockAdjustModal({ variant, onClose, onSuccess }: StockAdjustModalProps
             await adjustStock({ variante_id: variant.id, cantidad: diff, motivo: reason })
             onSuccess()
             toast.success(`Stock actualizado exitosamente. Nuevo total: ${variant.stock_actual + diff}`)
-        } catch (err: any) {
-            setError(err?.message || 'Error al ajustar stock')
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, 'Error al ajustar stock'))
         } finally {
             setLoading(false)
         }

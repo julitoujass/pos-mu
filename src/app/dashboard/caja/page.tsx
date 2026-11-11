@@ -1,5 +1,6 @@
 'use client'
 
+import { getErrorMessage } from '@/lib/errors'
 import { useState, useEffect } from 'react'
 import {
     fetchCashStatus,
@@ -23,7 +24,6 @@ import {
     ArrowDownCircle,
     AlertCircle,
     History,
-    Save,
     X,
     CalendarDays
 } from 'lucide-react'
@@ -165,8 +165,8 @@ function OpenRegisterForm({ onSuccess }: { onSuccess: () => void }) {
         try {
             await openRegister({ monto_apertura: Number(amount) })
             onSuccess()
-        } catch (err: any) {
-            setError(err.message || 'Error al abrir caja')
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, 'Error al abrir caja'))
         } finally {
             setLoading(false)
         }
@@ -387,7 +387,7 @@ function MovementsTable({ movements }: { movements: CashMovement[] }) {
 
 // ============ CLOSE REGISTER FORM ============
 
-function CloseRegisterForm({ status, onSuccess }: { status: CashStatusResponse, onSuccess: () => void }) {
+function CloseRegisterForm({ onSuccess }: { status: CashStatusResponse, onSuccess: () => void }) {
     const [finalAmount, setFinalAmount] = useState('')
     const [notes, setNotes] = useState('')
     const [loading, setLoading] = useState(false)
@@ -629,7 +629,7 @@ function SessionsHistoryModal({ onClose }: { onClose: () => void }) {
                 // Sort sessions putting the newest first by fecha_apertura
                 data.sort((a, b) => new Date(b.fecha_apertura).getTime() - new Date(a.fecha_apertura).getTime())
                 setSessions(data)
-            } catch (err) {
+            } catch {
                 toast.error('Error al cargar sesiones')
             } finally {
                 setLoading(false)
@@ -644,7 +644,7 @@ function SessionsHistoryModal({ onClose }: { onClose: () => void }) {
         try {
             const data = await fetchSessionMovements(session.id)
             setMovements(data)
-        } catch (err) {
+        } catch {
             toast.error('Error al cargar movimientos')
         } finally {
             setLoadingMovements(false)
@@ -735,7 +735,7 @@ function SessionsHistoryModal({ onClose }: { onClose: () => void }) {
                             </div>
                         ) : (
                             <div className="grid gap-4">
-                                {sessions.map((s, idx) => (
+                                {sessions.map((s) => (
                                     <div key={s.id} className="bg-background border border-border rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-sm hover:border-brand/40 transition-all hover:shadow-md">
                                         <div className="space-y-2">
                                             <div className="flex items-center gap-3">
