@@ -12,8 +12,13 @@ vi.mock('./supabase/client', () => ({
 }))
 
 import {
+    ApiError,
     closeRegister,
     fetchCashSummary,
+    fetchMarcas,
+    fetchMe,
+    updateUserActive,
+    updateUserRole,
     openRegister,
     processSale,
     type CashSummary,
@@ -129,5 +134,57 @@ describe('openRegister / closeRegister', () => {
         fetchMock.mockResolvedValue(jsonResponse({ id: 'c1', estado: 'cerrada' }))
         const res = await closeRegister({ monto_real_efectivo: 10 })
         expect(res.estado).toBe('cerrada')
+    })
+})
+
+describe('403 / error handling', () => {
+    it('surfaces the backend detail of a 403 on a read endpoint', async () => {
+        fetchMock.mockResolvedValue(jsonResponse({ detail: 'No tenés permisos' }, 403))
+        await expect(fetchMarcas()).rejects.toThrow('No tenés permisos')
+    })
+
+    it('throws an ApiError carrying the HTTP status', async () => {
+        fetchMock.mockResolvedValue(jsonResponse({ detail: 'Usuario inactivo' }, 403))
+        const err = await fetchMe().catch((e: unknown) => e)
+        expect(err).toBeInstanceOf(ApiError)
+        expect((err as ApiError).status).toBe(403)
+        expect((err as ApiError).message).toBe('Usuario inactivo')
+    })
+
+    it('falls back to the default message when the body has no detail', async () => {
+        fetchMock.mockResolvedValue(new Response('boom', { status: 500 }))
+        await expect(fetchMarcas()).rejects.toThrow('Error al cargar marcas')
+    })
+})
+
+describe('updateUserActive', () => {
+    it('PATCHes /usuarios/{id}/activo with the flag', async () => {
+        fetchMock.mockResolvedValue(jsonResponse({ id: 'u1', nombre: 'A', activo: false, created_at: 'now' }))
+        const res = await updateUserActive('u1', false)
+        expect(res.activo).toBe(false)
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/api/python/usuarios/u1/activo')
+        expect(init.method).toBe('PATCH')
+        expect(JSON.parse(init.body)).toEqual({ activo: false })
+    })
+
+    it('throws the backend detail on 409', async () => {
+        fetchMock.mockResolvedValue(
+            jsonResponse({ detail: 'Debe quedar al menos un administrador activo' }, 409),
+        )
+        await expect(updateUserActive('u1', false)).rejects.toThrow(
+            'Debe quedar al menos un administrador activo',
+        )
+    })
+})
+
+describe('updateUserRole', () => {
+    it('throws the backend detail on 409', async () => {
+        fetchMock.mockResolvedValue(
+            jsonResponse({ detail: 'No podés quitarte el rol de administrador' }, 409),
+        )
+        await expect(updateUserRole('u1', 2)).rejects.toThrow(
+            'No podés quitarte el rol de administrador',
+        )
     })
 })

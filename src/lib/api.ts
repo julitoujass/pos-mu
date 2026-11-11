@@ -1,5 +1,7 @@
 import { createClient as createSupabaseClient } from './supabase/client';
-import { getApiErrorDetail } from './errors';
+import { ApiError, getApiErrorDetail } from './errors';
+
+export { ApiError };
 
 // Use Next.js rewrite proxy to avoid CORS
 const API_URL = '/api/python';
@@ -23,6 +25,15 @@ async function getAuthHeaders(): Promise<HeadersInit> {
     }
 
     return headers;
+}
+
+/**
+ * Builds an ApiError from a failed response, using the backend `detail`
+ * (403, 409, 422...) when present and `fallback` otherwise.
+ */
+async function toApiError(res: Response, fallback: string): Promise<ApiError> {
+    const body: unknown = await res.json().catch(() => ({}));
+    return new ApiError(getApiErrorDetail(body, fallback), res.status);
 }
 
 // ============ TYPES ============
@@ -73,7 +84,8 @@ export type Variant = {
     precio_venta: number;
     stock_actual: number;
     producto_id: string;
-    precio_costo?: number;
+    /** null for empleado: the backend hides costs from non-admins */
+    precio_costo?: number | null;
     stock_minimo?: number;
 };
 
@@ -204,7 +216,7 @@ export async function fetchSalesToday(): Promise<SaleResponse[]> {
         headers,
         cache: 'no-store'
     });
-    if (!res.ok) throw new Error('Failed to fetch sales');
+    if (!res.ok) throw await toApiError(res, 'Failed to fetch sales');
     return res.json();
 }
 
@@ -216,7 +228,7 @@ export async function fetchCashStatus(): Promise<CashStatusResponse | null> {
         headers,
         cache: 'no-store'
     });
-    if (!res.ok) throw new Error('Failed to fetch cash status');
+    if (!res.ok) throw await toApiError(res, 'Failed to fetch cash status');
     return res.json();
 }
 
@@ -227,8 +239,7 @@ export async function fetchCashSummary(): Promise<CashSummary | null> {
         cache: 'no-store'
     });
     if (!res.ok) {
-        const error = await res.json().catch(() => ({}));
-        throw new Error(getApiErrorDetail(error, 'Failed to fetch cash summary'));
+        throw await toApiError(res, 'Failed to fetch cash summary');
     }
     return res.json();
 }
@@ -241,8 +252,7 @@ export async function openRegister(data: CashOpen): Promise<CashStatusResponse> 
         body: JSON.stringify({ monto_apertura: data.monto_apertura }),
     });
     if (!res.ok) {
-        const error = await res.json().catch(() => ({}));
-        throw new Error(getApiErrorDetail(error, 'Error opening register'));
+        throw await toApiError(res, 'Error opening register');
     }
     return res.json();
 }
@@ -255,8 +265,7 @@ export async function closeRegister(data: CashClose): Promise<CashStatusResponse
         body: JSON.stringify(data),
     });
     if (!res.ok) {
-        const error = await res.json().catch(() => ({}));
-        throw new Error(getApiErrorDetail(error, 'Error closing register'));
+        throw await toApiError(res, 'Error closing register');
     }
     return res.json();
 }
@@ -267,7 +276,7 @@ export async function fetchCashMovements(): Promise<CashMovement[]> {
         headers,
         cache: 'no-store'
     });
-    if (!res.ok) throw new Error('Failed to fetch movements');
+    if (!res.ok) throw await toApiError(res, 'Failed to fetch movements');
     return res.json();
 }
 
@@ -277,7 +286,7 @@ export async function fetchCashSessions(): Promise<CashStatusResponse[]> {
         headers,
         cache: 'no-store'
     });
-    if (!res.ok) throw new Error('Failed to fetch cash sessions');
+    if (!res.ok) throw await toApiError(res, 'Failed to fetch cash sessions');
     return res.json();
 }
 
@@ -287,7 +296,7 @@ export async function fetchSessionMovements(sesionId: string): Promise<CashMovem
         headers,
         cache: 'no-store'
     });
-    if (!res.ok) throw new Error('Failed to fetch session movements');
+    if (!res.ok) throw await toApiError(res, 'Failed to fetch session movements');
     return res.json();
 }
 
@@ -299,8 +308,7 @@ export async function createCashMovement(data: CashMovementCreate): Promise<Cash
         body: JSON.stringify(data),
     });
     if (!res.ok) {
-        const error = await res.json().catch(() => ({}));
-        throw new Error(getApiErrorDetail(error, 'Error creating movement'));
+        throw await toApiError(res, 'Error creating movement');
     }
     return res.json();
 }
@@ -319,8 +327,7 @@ export async function fetchProducts(categoriaId?: number): Promise<Product[]> {
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to fetch products');
+        throw await toApiError(res, 'Failed to fetch products');
     }
     return res.json();
 }
@@ -334,8 +341,7 @@ export async function createProduct(data: ProductCreate): Promise<Product> {
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to create product');
+        throw await toApiError(res, 'Failed to create product');
     }
     return res.json();
 }
@@ -349,8 +355,7 @@ export async function updateProduct(id: string, data: ProductUpdate): Promise<Pr
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to update product');
+        throw await toApiError(res, 'Failed to update product');
     }
     return res.json();
 }
@@ -366,8 +371,7 @@ export async function createVariant(data: VariantCreate): Promise<Variant> {
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to create variant');
+        throw await toApiError(res, 'Failed to create variant');
     }
     return res.json();
 }
@@ -381,8 +385,7 @@ export async function updateVariant(id: string, data: VariantUpdate): Promise<Va
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to update variant');
+        throw await toApiError(res, 'Failed to update variant');
     }
     return res.json();
 }
@@ -403,8 +406,7 @@ export async function adjustStock(data: StockAdjust): Promise<Variant> {
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to adjust stock');
+        throw await toApiError(res, 'Failed to adjust stock');
     }
     return res.json();
 }
@@ -417,8 +419,7 @@ export async function deleteVariant(id: string): Promise<void> {
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to delete variant');
+        throw await toApiError(res, 'Failed to delete variant');
     }
 }
 
@@ -430,8 +431,7 @@ export async function deleteProduct(id: string): Promise<void> {
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to delete product');
+        throw await toApiError(res, 'Failed to delete product');
     }
 }
 
@@ -482,8 +482,7 @@ export async function fetchClients(query?: string): Promise<Client[]> {
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to fetch clients');
+        throw await toApiError(res, 'Failed to fetch clients');
     }
     return res.json();
 }
@@ -497,8 +496,7 @@ export async function createClient(data: ClientCreate): Promise<Client> {
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to create client');
+        throw await toApiError(res, 'Failed to create client');
     }
     return res.json();
 }
@@ -512,8 +510,7 @@ export async function updateClient(id: string, data: ClientUpdate): Promise<Clie
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to update client');
+        throw await toApiError(res, 'Failed to update client');
     }
     return res.json();
 }
@@ -547,8 +544,7 @@ export async function processSale(data: SaleCreate, idempotencyKey: string): Pro
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(getApiErrorDetail(errorData, 'Failed to process sale'));
+        throw await toApiError(res, 'Failed to process sale');
     }
     return res.json();
 }
@@ -570,8 +566,7 @@ export async function fetchReporteVentas(fechaInicio?: string, fechaFin?: string
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to fetch sales report');
+        throw await toApiError(res, 'Failed to fetch sales report');
     }
     return res.json();
 }
@@ -591,8 +586,7 @@ export async function fetchReporteProductosTop(fechaInicio?: string, fechaFin?: 
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to fetch top products report');
+        throw await toApiError(res, 'Failed to fetch top products report');
     }
     return res.json();
 }
@@ -612,8 +606,7 @@ export async function fetchReporteCajas(fechaInicio?: string, fechaFin?: string)
     });
 
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to fetch cash report');
+        throw await toApiError(res, 'Failed to fetch cash report');
     }
     return res.json();
 }
@@ -623,7 +616,7 @@ export async function fetchReporteCajas(fechaInicio?: string, fechaFin?: string)
 export async function fetchMarcas(): Promise<Marca[]> {
     const headers = await getAuthHeaders();
     const res = await fetch(`${API_URL}/catalogos/marcas`, { headers, cache: 'no-store' });
-    if (!res.ok) throw new Error('Error al cargar marcas');
+    if (!res.ok) throw await toApiError(res, 'Error al cargar marcas');
     return res.json();
 }
 
@@ -635,8 +628,7 @@ export async function createMarca(data: Partial<Marca>): Promise<Marca> {
         body: JSON.stringify(data),
     });
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Error al crear marca');
+        throw await toApiError(res, 'Error al crear marca');
     }
     return res.json();
 }
@@ -649,8 +641,7 @@ export async function updateMarca(id: number, data: Partial<Marca>): Promise<Mar
         body: JSON.stringify(data),
     });
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Error al actualizar marca');
+        throw await toApiError(res, 'Error al actualizar marca');
     }
     return res.json();
 }
@@ -662,15 +653,14 @@ export async function deleteMarca(id: number): Promise<void> {
         headers,
     });
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Error al eliminar marca');
+        throw await toApiError(res, 'Error al eliminar marca');
     }
 }
 
 export async function fetchCategorias(): Promise<Categoria[]> {
     const headers = await getAuthHeaders();
     const res = await fetch(`${API_URL}/catalogos/categorias`, { headers, cache: 'no-store' });
-    if (!res.ok) throw new Error('Error al cargar categorias');
+    if (!res.ok) throw await toApiError(res, 'Error al cargar categorias');
     return res.json();
 }
 
@@ -682,8 +672,7 @@ export async function createCategoria(data: Partial<Categoria>): Promise<Categor
         body: JSON.stringify(data),
     });
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Error al crear categoría');
+        throw await toApiError(res, 'Error al crear categoría');
     }
     return res.json();
 }
@@ -696,8 +685,7 @@ export async function updateCategoria(id: number, data: Partial<Categoria>): Pro
         body: JSON.stringify(data),
     });
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Error al actualizar categoría');
+        throw await toApiError(res, 'Error al actualizar categoría');
     }
     return res.json();
 }
@@ -709,8 +697,7 @@ export async function deleteCategoria(id: number): Promise<void> {
         headers,
     });
     if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Error al eliminar categoría');
+        throw await toApiError(res, 'Error al eliminar categoría');
     }
 }
 
@@ -734,6 +721,7 @@ export type MeResponse = {
     id: string;
     email: string;
     rol: string;
+    activo?: boolean;
 };
 
 export async function fetchMe(): Promise<MeResponse> {
@@ -742,7 +730,7 @@ export async function fetchMe(): Promise<MeResponse> {
         headers,
         cache: 'no-store'
     });
-    if (!res.ok) throw new Error('Failed to fetch user profile');
+    if (!res.ok) throw await toApiError(res, 'Failed to fetch user profile');
     return res.json();
 }
 
@@ -753,8 +741,7 @@ export async function fetchUsers(): Promise<UsuarioResponse[]> {
         cache: 'no-store'
     });
     if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Failed to fetch users');
+        throw await toApiError(res, 'Failed to fetch users');
     }
     return res.json();
 }
@@ -765,7 +752,7 @@ export async function fetchRoles(): Promise<RoleResponse[]> {
         headers,
         cache: 'no-store'
     });
-    if (!res.ok) throw new Error('Failed to fetch roles');
+    if (!res.ok) throw await toApiError(res, 'Failed to fetch roles');
     return res.json();
 }
 
@@ -777,8 +764,18 @@ export async function updateUserRole(id: string, rol_id: number): Promise<Usuari
         body: JSON.stringify({ rol_id })
     });
     if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Failed to update user role');
+        throw await toApiError(res, 'Failed to update user role');
     }
+    return res.json();
+}
+
+export async function updateUserActive(id: string, activo: boolean): Promise<UsuarioResponse> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/usuarios/${id}/activo`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ activo })
+    });
+    if (!res.ok) throw await toApiError(res, 'Failed to update user status');
     return res.json();
 }

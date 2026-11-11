@@ -34,3 +34,19 @@ export function getApiErrorDetail(body: unknown, fallback: string): string {
     }
     return fallback;
 }
+
+/** Error from a failed backend call; carries the HTTP status for role/auth handling. */
+export class ApiError extends Error {
+    readonly status: number;
+
+    constructor(message: string, status: number) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+    }
+}
+
+/** True when the backend rejected the call because the user is deactivated. */
+export function isInactiveUserError(error: unknown): boolean {
+    return error instanceof ApiError && error.status === 403 && /inactivo/i.test(error.message);
+}
