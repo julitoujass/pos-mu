@@ -1,60 +1,101 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 
-const TARGET_API_URL = 'http://127.0.0.1:8000/api/v1';
+const DEV_FALLBACK_API_URL = 'http://127.0.0.1:8000/api/v1';
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+// Only these request headers are forwarded to the backend.
+const REQUEST_HEADER_ALLOWLIST = [
+    'authorization',
+    'content-type',
+    'accept',
+    'accept-language',
+    'idempotency-key',
+];
+
+// Only these backend response headers are returned to the browser.
+const RESPONSE_HEADER_ALLOWLIST = ['content-type', 'content-disposition', 'cache-control'];
+
+type RouteContext = { params: Promise<{ path: string[] }> };
+
+export async function GET(request: NextRequest, { params }: RouteContext) {
     return handleProxy(request, await params);
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+export async function POST(request: NextRequest, { params }: RouteContext) {
     return handleProxy(request, await params);
 }
 
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+export async function PUT(request: NextRequest, { params }: RouteContext) {
     return handleProxy(request, await params);
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return handleProxy(request, await params);
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
     return handleProxy(request, await params);
+}
+
+function resolveBackendUrl(): string | null {
+    const configured = process.env.BACKEND_API_URL?.trim();
+    if (configured) {
+        return configured.replace(/\/+$/, '');
+    }
+    if (process.env.NODE_ENV !== 'production') {
+        return DEV_FALLBACK_API_URL;
+    }
+    return null;
 }
 
 async function handleProxy(request: NextRequest, params: { path: string[] }) {
-    const path = params.path.join('/');
-    const searchParams = request.nextUrl.searchParams.toString();
-    const url = `${TARGET_API_URL}/${path}${searchParams ? `?${searchParams}` : ''}`;
+    const backendUrl = resolveBackendUrl();
+    if (!backendUrl) {
+        return NextResponse.json({ detail: 'Backend URL not configured' }, { status: 500 });
+    }
 
-    console.log(`[Proxy] Forwarding ${request.method} to: ${url}`);
+    const segments = params.path;
+    if (segments.some((segment) => segment === '..' || segment.includes('\\'))) {
+        return NextResponse.json({ detail: 'Invalid path' }, { status: 400 });
+    }
 
-    const headers = new Headers(request.headers);
-    headers.delete('host'); // Let fetch set the host
-    headers.delete('connection');
+    const path = segments.map((segment) => encodeURIComponent(segment)).join('/');
+    const search = request.nextUrl.search;
+    const url = `${backendUrl}/${path}${search}`;
 
-    // Forward the request
+    const headers = new Headers();
+    for (const name of REQUEST_HEADER_ALLOWLIST) {
+        const value = request.headers.get(name);
+        if (value !== null) {
+            headers.set(name, value);
+        }
+    }
+
     try {
         const body = ['GET', 'HEAD'].includes(request.method) ? undefined : await request.blob();
 
         const response = await fetch(url, {
             method: request.method,
-            headers: headers,
-            body: body,
+            headers,
+            body,
             cache: 'no-store',
         });
 
-        console.log(`[Proxy] Response status: ${response.status}`);
-
         const data = await response.blob();
+
+        const responseHeaders = new Headers();
+        for (const name of RESPONSE_HEADER_ALLOWLIST) {
+            const value = response.headers.get(name);
+            if (value !== null) {
+                responseHeaders.set(name, value);
+            }
+        }
+
         return new NextResponse(data, {
             status: response.status,
-            headers: response.headers,
+            headers: responseHeaders,
         });
-
-    } catch (error: any) {
-        console.error('[Proxy] Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        console.error('[api-proxy]', request.method, `/${path}`, error instanceof Error ? error.name : 'unknown error');
+        return NextResponse.json({ detail: 'Backend unavailable' }, { status: 502 });
     }
 }
