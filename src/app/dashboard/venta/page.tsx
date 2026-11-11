@@ -2,6 +2,7 @@
 
 import { getErrorMessage } from '@/lib/errors'
 import { useState, useEffect, useRef } from 'react'
+import { formatMoney, roundMoney } from '@/lib/money'
 import {
     Barcode,
     ShoppingCart,
@@ -27,7 +28,9 @@ import {
     processSale,
     Product,
     Client,
-    SaleCreate
+    PaymentMethod,
+    SaleCreate,
+    SaleResponse
 } from '@/lib/api'
 
 interface CartItem {
@@ -71,10 +74,19 @@ export default function NewSalePage() {
     // Sale States
     const [cart, setCart] = useState<CartItem[]>([])
     const [selectedClient, setSelectedClient] = useState<string>('') // empty string = Consumidor Final
-    const [paymentMethod, setPaymentMethod] = useState<string>('Efectivo')
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Efectivo')
     const [skuInput, setSkuInput] = useState('')
 
     const skuInputRef = useRef<HTMLInputElement>(null)
+
+    // One idempotency key per checkout attempt: reused when the user retries after an
+    // error, so the backend never registers the same sale twice.
+    const idempotencyKeyRef = useRef<string | null>(null)
+
+    // Any change to the sale contents invalidates the current attempt's key.
+    useEffect(() => {
+        idempotencyKeyRef.current = null
+    }, [cart, paymentMethod, selectedClient])
 
     // Load Data on Mount
     useEffect(() => {
@@ -195,62 +207,82 @@ export default function NewSalePage() {
         setCart(prev => prev.filter(item => item.variantId !== variantId))
     }
 
-    const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    // Estimate only: the backend computes the authoritative total from DB prices.
+    const totalAmount = roundMoney(cart.reduce((sum, item) => sum + roundMoney(item.price * item.quantity), 0))
     const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
 
+    async function loadVariants(): Promise<void> {
+        const newProducts = await fetchProducts()
+        const flatVariants: SearchableVariant[] = []
+        newProducts.forEach(p => {
+            p.variantes.forEach(v => {
+                flatVariants.push({
+                    variantId: v.id,
+                    productId: p.id,
+                    name: p.nombre,
+                    sku: v.sku || '',
+                    talle: v.talle || '',
+                    color: v.color || '',
+                    price: v.precio_venta,
+                    stock: v.stock_actual
+                })
+            })
+        })
+        setSearchableVariants(flatVariants)
+    }
+
     async function handleProcessSale() {
-        if (cart.length === 0) return
+        if (cart.length === 0 || processing) return
 
         setProcessing(true)
         setError(null)
 
+        if (!idempotencyKeyRef.current) {
+            idempotencyKeyRef.current = crypto.randomUUID()
+        }
+        const idempotencyKey = idempotencyKeyRef.current
+
+        let sale: SaleResponse
         try {
+            // Only ids and quantities are sent: the server prices the sale.
             const saleData: SaleCreate = {
                 items: cart.map(i => ({
                     variante_id: i.variantId,
-                    cantidad: i.quantity,
-                    precio_unitario: i.price
+                    cantidad: i.quantity
                 })),
                 metodo_pago: paymentMethod,
                 cliente_id: selectedClient || null
             }
 
-            await processSale(saleData)
-
-            setSuccessMsg('¡Venta registrada correctamente!')
-            setCart([])
-            setSkuInput('')
-            setSelectedClient('')
-            setPaymentMethod('Efectivo')
-
-            // Reload product data to update local stock cache
-            // In a bigger app, we would just decrement local cache optimistically
-            const newProducts = await fetchProducts()
-            const flatVariants: SearchableVariant[] = []
-            newProducts.forEach(p => {
-                p.variantes.forEach(v => {
-                    flatVariants.push({
-                        variantId: v.id,
-                        productId: p.id,
-                        name: p.nombre,
-                        sku: v.sku || '',
-                        talle: v.talle || '',
-                        color: v.color || '',
-                        price: v.precio_venta,
-                        stock: v.stock_actual
-                    })
-                })
-            })
-            setSearchableVariants(flatVariants)
-
-            setTimeout(() => setSuccessMsg(null), 3000)
-            skuInputRef.current?.focus()
-
+            sale = await processSale(saleData, idempotencyKey)
         } catch (err: unknown) {
-            setError(getErrorMessage(err, 'Error al procesar la venta'))
-        } finally {
+            // Keep the idempotency key so a retry is safe.
+            const message = getErrorMessage(err, 'Error al procesar la venta')
+            setError(message)
+            toast.error(message)
             setProcessing(false)
+            return
         }
+
+        // The sale is registered from here on: never report anything below as a sale error.
+        idempotencyKeyRef.current = null
+        const successText = `Venta registrada por ${formatMoney(sale.total)}`
+        toast.success(successText)
+        setSuccessMsg(successText)
+        setCart([])
+        setSkuInput('')
+        setSelectedClient('')
+        setPaymentMethod('Efectivo')
+
+        try {
+            await loadVariants()
+        } catch {
+            toast.warning('Venta registrada, pero no se pudo actualizar el stock en pantalla')
+        }
+
+        setTimeout(() => setSuccessMsg(null), 3000)
+        skuInputRef.current?.focus()
+        setProcessing(false)
     }
 
     if (loadingData) {
@@ -382,10 +414,10 @@ export default function NewSalePage() {
                                                 </div>
                                             </td>
                                             <td className="p-4 text-right text-muted-foreground">
-                                                ${item.price.toLocaleString('es-AR')}
+                                                {formatMoney(item.price)}
                                             </td>
                                             <td className="p-4 text-right font-bold text-foreground">
-                                                ${(item.price * item.quantity).toLocaleString('es-AR')}
+                                                {formatMoney(item.price * item.quantity)}
                                             </td>
                                             <td className="p-4 text-right">
                                                 <button
@@ -481,7 +513,7 @@ export default function NewSalePage() {
                         </h2>
 
                         <div className="grid grid-cols-3 gap-2 mb-4">
-                            {['Efectivo', 'Tarjeta', 'QR'].map(method => (
+                            {(['Efectivo', 'Tarjeta', 'QR'] as PaymentMethod[]).map(method => (
                                 <button
                                     key={method}
                                     onClick={() => setPaymentMethod(method)}
@@ -515,7 +547,7 @@ export default function NewSalePage() {
                         <div className="flex justify-between items-end">
                             <span className="text-muted-foreground font-medium">Total a Pagar</span>
                             <span className="text-4xl font-black text-foreground tracking-tight">
-                                ${totalAmount.toLocaleString('es-AR')}
+                                {formatMoney(totalAmount)}
                             </span>
                         </div>
 
