@@ -213,7 +213,6 @@ export default function NewSalePage() {
                     precio_unitario: i.price
                 })),
                 metodo_pago: paymentMethod,
-                total: totalAmount, // Optional depending on backend
                 cliente_id: selectedClient || null
             }
 

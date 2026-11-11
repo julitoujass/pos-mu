@@ -12,18 +12,24 @@ import {
     Settings,
     LogOut,
     Menu,
-    X
+    X,
+    BarChart2,
+    Tags
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { fetchMe, MeResponse } from '@/lib/api'
 
 const sidebarItems = [
     { name: 'Panel Principal', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Nueva Venta', href: '/dashboard/venta', icon: ShoppingCart },
     { name: 'Caja', href: '/dashboard/caja', icon: Banknote },
     { name: 'Productos', href: '/dashboard/productos', icon: Package },
+    { name: 'Catálogos', href: '/dashboard/catalogos', icon: Tags },
     { name: 'Clientes', href: '/dashboard/clientes', icon: Users },
+    { name: 'Reportes', href: '/dashboard/reportes', icon: BarChart2, adminOnly: true },
+    { name: 'Usuarios', href: '/dashboard/usuarios', icon: Users, adminOnly: true },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -31,6 +37,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const pathname = usePathname()
     const router = useRouter()
     const supabase = createClient()
+    const [userRole, setUserRole] = useState<string>('empleado')
+
+    React.useEffect(() => {
+        async function loadRole() {
+            try {
+                const me = await fetchMe();
+                setUserRole(me.rol);
+            } catch (err) {
+                console.error("Error loading profile role", err);
+            }
+        }
+        loadRole();
+    }, [])
 
     async function handleSignOut() {
         await supabase.auth.signOut()
@@ -68,6 +87,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                     <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
                         {sidebarItems.map((item) => {
+                            if (item.adminOnly && userRole !== 'admin') return null;
+
                             const isActive = pathname === item.href
                             return (
                                 <Link

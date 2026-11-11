@@ -11,23 +11,37 @@ async function getAuthHeaders(): Promise<HeadersInit> {
         console.error('Error getting session:', error);
     }
 
-    console.log('Session status:', session ? 'Active' : 'None', 'User:', session?.user?.email);
-
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
     };
 
     if (session?.access_token) {
-        console.log('Adding Bearer token to headers');
         headers['Authorization'] = `Bearer ${session.access_token}`;
-    } else {
-        console.warn('No access token available for API request');
+    } else if (process.env.NODE_ENV !== 'production') {
+        console.warn('[API] No access token available for request');
     }
 
     return headers;
 }
 
 // ============ TYPES ============
+
+export type Marca = {
+    id: number;
+    nombre: string;
+    contacto_nombre?: string | null;
+    telefono?: string | null;
+    email?: string | null;
+    created_at?: string | null;
+};
+
+export type Categoria = {
+    id: number;
+    nombre: string;
+    descripcion?: string | null;
+    tiendanube_id?: string | null;
+    created_at?: string | null;
+};
 
 export type Product = {
     id: string;
@@ -94,7 +108,11 @@ export type CashStatusResponse = {
     estado: string;
     monto_apertura: number;
     fecha_apertura: string;
-    monto_real_efectivo?: number;
+    fecha_cierre?: string | null;
+    monto_real_efectivo?: number | null;
+    monto_esperado_efectivo?: number | null;
+    observaciones?: string | null;
+    usuario_id?: string;
 };
 
 export type CashOpen = {
@@ -109,10 +127,12 @@ export type CashClose = {
 
 export type CashMovement = {
     id: string;
-    caja_id: string;
+    sesion_id?: string;
+    caja_id?: string;
     tipo: 'ingreso' | 'egreso';
     monto: number;
-    descripcion: string;
+    motivo?: string;
+    descripcion?: string;
     created_at: string;
     usuario_id?: string;
 };
@@ -120,7 +140,45 @@ export type CashMovement = {
 export type CashMovementCreate = {
     tipo: 'ingreso' | 'egreso';
     monto: number;
-    descripcion: string;
+    motivo: string;
+};
+
+// ============ REPORTE TYPES ============
+
+export type VentaDia = {
+    fecha: string;
+    total: number;
+    cantidad_ventas: number;
+};
+
+export type VentasTotalesReporte = {
+    total_ingresos: number;
+    cantidad_operaciones: number;
+    ventas_por_dia: VentaDia[];
+};
+
+export type ProductoTopReporte = {
+    variante_id: string;
+    nombre_producto: string;
+    talle?: string | null;
+    color?: string | null;
+    cantidad_vendida: number;
+    ingresos_generados: number;
+};
+
+export type CajaResumenDiario = {
+    fecha: string;
+    sesiones_abiertas: number;
+    monto_inicial_total: number;
+    ingresos: number;
+    egresos: number;
+    monto_real_efectivo_total: number;
+    diferencia_esperado_vs_real: number;
+};
+
+export type CajaResumenReporte = {
+    resumen_diario: CajaResumenDiario[];
+    diferencia_total_periodo: number;
 };
 
 // ============ SALES ============
@@ -194,6 +252,26 @@ export async function fetchCashMovements(): Promise<CashMovement[]> {
         cache: 'no-store'
     });
     if (!res.ok) throw new Error('Failed to fetch movements');
+    return res.json();
+}
+
+export async function fetchCashSessions(): Promise<CashStatusResponse[]> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/caja/sesiones`, {
+        headers,
+        cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Failed to fetch cash sessions');
+    return res.json();
+}
+
+export async function fetchSessionMovements(sesionId: string): Promise<CashMovement[]> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/caja/sesiones/${sesionId}/movimientos`, {
+        headers,
+        cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Failed to fetch session movements');
     return res.json();
 }
 
@@ -293,6 +371,55 @@ export async function updateVariant(id: string, data: VariantUpdate): Promise<Va
     return res.json();
 }
 
+export type StockAdjust = {
+    variante_id: string;
+    /** Positivo para ingresar stock, negativo para descontar */
+    cantidad: number;
+    motivo: string;
+};
+
+export async function adjustStock(data: StockAdjust): Promise<Variant> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/productos/inventario/stock`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to adjust stock');
+    }
+    return res.json();
+}
+
+export async function deleteVariant(id: string): Promise<void> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/productos/variante/${id}`, {
+        method: 'DELETE',
+        headers,
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to delete variant');
+    }
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/productos/${id}`, {
+        method: 'DELETE',
+        headers,
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to delete product');
+    }
+}
+
+
 // ============ CUSTOMERS ============
 
 export type Client = {
@@ -387,7 +514,7 @@ export type SaleCreate = {
     cliente_id?: string | null;
     metodo_pago: string;
     items: SaleItemCreate[];
-    total: number; // Backend might recalculate, but passing it for validation or logging is often useful
+    // Nota: 'total' no se envía. El backend lo recalcula internamente por seguridad.
 };
 
 export async function processSale(data: SaleCreate): Promise<SaleResponse> {
@@ -401,6 +528,236 @@ export async function processSale(data: SaleCreate): Promise<SaleResponse> {
     if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.detail || 'Failed to process sale');
+    }
+    return res.json();
+}
+
+// ============ REPORTES ============
+
+export async function fetchReporteVentas(fechaInicio?: string, fechaFin?: string): Promise<VentasTotalesReporte> {
+    const headers = await getAuthHeaders();
+
+    const params = new URLSearchParams();
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
+
+    const res = await fetch(`${API_URL}/reportes/ventas${queryStr}`, {
+        headers,
+        cache: 'no-store'
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to fetch sales report');
+    }
+    return res.json();
+}
+
+export async function fetchReporteProductosTop(fechaInicio?: string, fechaFin?: string): Promise<ProductoTopReporte[]> {
+    const headers = await getAuthHeaders();
+
+    const params = new URLSearchParams();
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
+
+    const res = await fetch(`${API_URL}/reportes/productos-top${queryStr}`, {
+        headers,
+        cache: 'no-store'
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to fetch top products report');
+    }
+    return res.json();
+}
+
+export async function fetchReporteCajas(fechaInicio?: string, fechaFin?: string): Promise<CajaResumenReporte> {
+    const headers = await getAuthHeaders();
+
+    const params = new URLSearchParams();
+    if (fechaInicio) params.append('fecha_inicio', fechaInicio);
+    if (fechaFin) params.append('fecha_fin', fechaFin);
+
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
+
+    const res = await fetch(`${API_URL}/reportes/cajas${queryStr}`, {
+        headers,
+        cache: 'no-store'
+    });
+
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to fetch cash report');
+    }
+    return res.json();
+}
+
+// ============ CATALOGOS (MARCAS Y CATEGORIAS) ============
+
+export async function fetchMarcas(): Promise<Marca[]> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/catalogos/marcas`, { headers, cache: 'no-store' });
+    if (!res.ok) throw new Error('Error al cargar marcas');
+    return res.json();
+}
+
+export async function createMarca(data: Partial<Marca>): Promise<Marca> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/catalogos/marcas`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Error al crear marca');
+    }
+    return res.json();
+}
+
+export async function updateMarca(id: number, data: Partial<Marca>): Promise<Marca> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/catalogos/marcas/${id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Error al actualizar marca');
+    }
+    return res.json();
+}
+
+export async function deleteMarca(id: number): Promise<void> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/catalogos/marcas/${id}`, {
+        method: 'DELETE',
+        headers,
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Error al eliminar marca');
+    }
+}
+
+export async function fetchCategorias(): Promise<Categoria[]> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/catalogos/categorias`, { headers, cache: 'no-store' });
+    if (!res.ok) throw new Error('Error al cargar categorias');
+    return res.json();
+}
+
+export async function createCategoria(data: Partial<Categoria>): Promise<Categoria> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/catalogos/categorias`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Error al crear categoría');
+    }
+    return res.json();
+}
+
+export async function updateCategoria(id: number, data: Partial<Categoria>): Promise<Categoria> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/catalogos/categorias/${id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Error al actualizar categoría');
+    }
+    return res.json();
+}
+
+export async function deleteCategoria(id: number): Promise<void> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/catalogos/categorias/${id}`, {
+        method: 'DELETE',
+        headers,
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Error al eliminar categoría');
+    }
+}
+
+// ============ USERS & ROLES ============
+
+export type RoleResponse = {
+    id: number;
+    nombre: string;
+};
+
+export type UsuarioResponse = {
+    id: string;
+    nombre: string;
+    apellido?: string | null;
+    activo: boolean;
+    roles?: RoleResponse | null;
+    created_at: string;
+};
+
+export type MeResponse = {
+    id: string;
+    email: string;
+    rol: string;
+};
+
+export async function fetchMe(): Promise<MeResponse> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/usuarios/me`, {
+        headers,
+        cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Failed to fetch user profile');
+    return res.json();
+}
+
+export async function fetchUsers(): Promise<UsuarioResponse[]> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/usuarios/`, {
+        headers,
+        cache: 'no-store'
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to fetch users');
+    }
+    return res.json();
+}
+
+export async function fetchRoles(): Promise<RoleResponse[]> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/usuarios/roles`, {
+        headers,
+        cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Failed to fetch roles');
+    return res.json();
+}
+
+export async function updateUserRole(id: string, rol_id: number): Promise<UsuarioResponse> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/usuarios/${id}/rol`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ rol_id })
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to update user role');
     }
     return res.json();
 }

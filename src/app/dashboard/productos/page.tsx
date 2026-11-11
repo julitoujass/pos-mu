@@ -1,20 +1,26 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Package, Plus, ChevronDown, ChevronUp, AlertCircle, Loader2, Edit, Pencil, Search } from 'lucide-react'
+import { Package, Plus, ChevronDown, ChevronUp, AlertCircle, Loader2, Edit, Pencil, Search, Trash2, PlusCircle, MinusCircle } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'sonner'
 import {
     fetchProducts,
     createProduct,
     updateProduct,
     createVariant,
     updateVariant,
+    adjustStock,
+    deleteProduct,
+    deleteVariant,
     Product,
     ProductCreate,
     ProductUpdate,
     VariantCreate,
     VariantUpdate,
-    Variant
+    Variant,
+    StockAdjust,
+    fetchMe
 } from '@/lib/api'
 
 export default function ProductsPage() {
@@ -23,6 +29,7 @@ export default function ProductsPage() {
     const [error, setError] = useState<string | null>(null)
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
+    const [userRole, setUserRole] = useState<string>('empleado')
 
     // Modal states
     const [productModalMode, setProductModalMode] = useState<'create' | 'edit'>('create')
@@ -33,6 +40,15 @@ export default function ProductsPage() {
     const [showVariantModal, setShowVariantModal] = useState(false)
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
     const [editingVariant, setEditingVariant] = useState<Variant | null>(null)
+
+    // Stock adjustment modal
+    const [stockAdjustVariant, setStockAdjustVariant] = useState<Variant | null>(null)
+
+    // Delete confirm modal
+    const [deleteTarget, setDeleteTarget] = useState<
+        { type: 'product'; item: Product } | { type: 'variant'; item: Variant } | null
+    >(null)
+    const [deleting, setDeleting] = useState(false)
 
     async function loadProducts() {
         try {
@@ -50,6 +66,15 @@ export default function ProductsPage() {
 
     useEffect(() => {
         loadProducts()
+        async function loadRole() {
+            try {
+                const me = await fetchMe();
+                setUserRole(me.rol);
+            } catch (e) {
+                // Ignore
+            }
+        }
+        loadRole()
     }, [])
 
     function handleCreateProduct() {
@@ -76,6 +101,26 @@ export default function ProductsPage() {
         setSelectedProductId(product_id)
         setEditingVariant(variant)
         setShowVariantModal(true)
+    }
+
+    async function handleConfirmDelete() {
+        if (!deleteTarget) return
+        setDeleting(true)
+        try {
+            if (deleteTarget.type === 'product') {
+                await deleteProduct(deleteTarget.item.id)
+                toast.success(`Producto "${deleteTarget.item.nombre}" eliminado`)
+            } else {
+                await deleteVariant(deleteTarget.item.id)
+                toast.success('Variante eliminada')
+            }
+            setDeleteTarget(null)
+            loadProducts()
+        } catch (err: any) {
+            toast.error(err?.message || 'Error al eliminar')
+        } finally {
+            setDeleting(false)
+        }
     }
 
     const filteredProducts = products.filter(product => {
@@ -193,6 +238,15 @@ export default function ProductsPage() {
                                     >
                                         + Variante
                                     </button>
+                                    {userRole === 'admin' && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'product', item: product }) }}
+                                            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                            title="Eliminar producto"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    )}
                                     {expandedProduct === product.id ? (
                                         <ChevronUp className="w-5 h-5 text-muted-foreground" />
                                     ) : (
@@ -232,12 +286,31 @@ export default function ProductsPage() {
                                                         return (
                                                             <tr key={variant.id} className="border-b border-border last:border-0 hover:bg-card/50">
                                                                 <td className="py-2">
-                                                                    <button
-                                                                        onClick={() => handleEditVariant(product.id, variant)}
-                                                                        className="p-1.5 rounded-lg text-muted-foreground hover:text-brand hover:bg-brand/10 transition-colors"
-                                                                    >
-                                                                        <Pencil size={16} />
-                                                                    </button>
+                                                                    <div className="flex items-center gap-1">
+                                                                        <button
+                                                                            onClick={() => handleEditVariant(product.id, variant)}
+                                                                            className="p-1.5 rounded-lg text-muted-foreground hover:text-brand hover:bg-brand/10 transition-colors"
+                                                                            title="Editar"
+                                                                        >
+                                                                            <Pencil size={14} />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => setStockAdjustVariant(variant)}
+                                                                            className="p-1.5 rounded-lg text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+                                                                            title="Ajustar stock"
+                                                                        >
+                                                                            <PlusCircle size={14} />
+                                                                        </button>
+                                                                        {userRole === 'admin' && (
+                                                                            <button
+                                                                                onClick={() => setDeleteTarget({ type: 'variant', item: variant })}
+                                                                                className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                                                                title="Eliminar variante"
+                                                                            >
+                                                                                <Trash2 size={14} />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
                                                                 </td>
                                                                 <td className="py-2 text-foreground font-mono text-xs">{variant.sku || '-'}</td>
                                                                 <td className="py-2 text-muted-foreground">{variant.talle || '-'}</td>
@@ -296,6 +369,28 @@ export default function ProductsPage() {
                     onSuccess={() => { setShowVariantModal(false); setSelectedProductId(null); loadProducts(); }}
                 />
             )}
+
+            {/* Stock Adjust Modal */}
+            {stockAdjustVariant && (
+                <StockAdjustModal
+                    variant={stockAdjustVariant}
+                    onClose={() => setStockAdjustVariant(null)}
+                    onSuccess={() => { setStockAdjustVariant(null); loadProducts(); }}
+                />
+            )}
+
+            {/* Delete Confirm Modal */}
+            {deleteTarget && (
+                <DeleteConfirmModal
+                    label={deleteTarget.type === 'product'
+                        ? `el producto "${(deleteTarget.item as Product).nombre}"`
+                        : `la variante "${(deleteTarget.item as Variant).sku || 'sin SKU'}"`
+                    }
+                    loading={deleting}
+                    onConfirm={handleConfirmDelete}
+                    onCancel={() => setDeleteTarget(null)}
+                />
+            )}
         </div>
     )
 }
@@ -310,6 +405,7 @@ interface ProductModalProps {
 
 function ProductModal({ mode, initialData, onClose, onSuccess }: ProductModalProps) {
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const [form, setForm] = useState<ProductCreate>({
         nombre: initialData?.nombre || '',
         descripcion: initialData?.descripcion || ''
@@ -318,6 +414,7 @@ function ProductModal({ mode, initialData, onClose, onSuccess }: ProductModalPro
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
         setLoading(true)
+        setError(null)
         try {
             if (mode === 'edit' && initialData) {
                 await updateProduct(initialData.id, form)
@@ -325,8 +422,8 @@ function ProductModal({ mode, initialData, onClose, onSuccess }: ProductModalPro
                 await createProduct(form)
             }
             onSuccess()
-        } catch (err) {
-            console.error(err)
+        } catch (err: any) {
+            setError(err?.message || 'Ocurrió un error inesperado')
         } finally {
             setLoading(false)
         }
@@ -345,7 +442,7 @@ function ProductModal({ mode, initialData, onClose, onSuccess }: ProductModalPro
                             type="text"
                             required
                             value={form.nombre}
-                            onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                            onChange={(e) => { setError(null); setForm({ ...form, nombre: e.target.value }) }}
                             className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                             placeholder="Ej: Camisa Polo"
                         />
@@ -360,6 +457,14 @@ function ProductModal({ mode, initialData, onClose, onSuccess }: ProductModalPro
                             placeholder="Descripción del producto..."
                         />
                     </div>
+
+                    {error && (
+                        <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl text-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-input text-muted-foreground font-medium hover:bg-muted hover:text-foreground transition-colors">
                             Cancelar
@@ -385,8 +490,8 @@ interface VariantModalProps {
 
 function VariantModal({ mode, initialData, productId, onClose, onSuccess }: VariantModalProps) {
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
-    // NOTE: For 'edit' mode, we usually don't verify stock logic in frontend strongly, just pass values.
     const [form, setForm] = useState<VariantCreate>({
         producto_id: productId,
         sku: initialData?.sku || '',
@@ -398,12 +503,17 @@ function VariantModal({ mode, initialData, productId, onClose, onSuccess }: Vari
         stock_minimo: initialData?.stock_minimo || 0,
     })
 
+    function updateField<K extends keyof VariantCreate>(key: K, value: VariantCreate[K]) {
+        setError(null)
+        setForm(prev => ({ ...prev, [key]: value }))
+    }
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
         setLoading(true)
+        setError(null)
         try {
             if (mode === 'edit' && initialData) {
-                // Adapt VariantCreate to VariantUpdate request
                 const updateData: VariantUpdate = {
                     sku: form.sku,
                     talle: form.talle,
@@ -411,17 +521,14 @@ function VariantModal({ mode, initialData, productId, onClose, onSuccess }: Vari
                     precio_venta: form.precio_venta,
                     precio_costo: form.precio_costo,
                     stock_minimo: form.stock_minimo
-                    // Note: stock_actual usually not updated here in APIs, but via Inventory endpoint. 
-                    // However, check if backend allows it in 'update_variant'.
-                    // Based on schema, VariantUpdate doesn't have stock_actual.
                 }
                 await updateVariant(initialData.id, updateData)
             } else {
                 await createVariant(form)
             }
             onSuccess()
-        } catch (err) {
-            console.error(err)
+        } catch (err: any) {
+            setError(err?.message || 'Ocurrió un error inesperado')
         } finally {
             setLoading(false)
         }
@@ -440,7 +547,7 @@ function VariantModal({ mode, initialData, productId, onClose, onSuccess }: Vari
                             <input
                                 type="text"
                                 value={form.sku || ''}
-                                onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                                onChange={(e) => updateField('sku', e.target.value)}
                                 className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                                 placeholder="ABC-001"
                             />
@@ -450,7 +557,7 @@ function VariantModal({ mode, initialData, productId, onClose, onSuccess }: Vari
                             <input
                                 type="text"
                                 value={form.talle || ''}
-                                onChange={(e) => setForm({ ...form, talle: e.target.value })}
+                                onChange={(e) => updateField('talle', e.target.value)}
                                 className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                                 placeholder="M, L, XL..."
                             />
@@ -461,7 +568,7 @@ function VariantModal({ mode, initialData, productId, onClose, onSuccess }: Vari
                         <input
                             type="text"
                             value={form.color || ''}
-                            onChange={(e) => setForm({ ...form, color: e.target.value })}
+                            onChange={(e) => updateField('color', e.target.value)}
                             className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                             placeholder="Azul, Rojo..."
                         />
@@ -474,7 +581,7 @@ function VariantModal({ mode, initialData, productId, onClose, onSuccess }: Vari
                                 min={0}
                                 step={0.01}
                                 value={form.precio_costo || ''}
-                                onChange={(e) => setForm({ ...form, precio_costo: parseFloat(e.target.value) || 0 })}
+                                onChange={(e) => updateField('precio_costo', parseFloat(e.target.value) || 0)}
                                 className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                             />
                         </div>
@@ -486,25 +593,27 @@ function VariantModal({ mode, initialData, productId, onClose, onSuccess }: Vari
                                 min={0}
                                 step={0.01}
                                 value={form.precio_venta}
-                                onChange={(e) => setForm({ ...form, precio_venta: parseFloat(e.target.value) || 0 })}
+                                onChange={(e) => updateField('precio_venta', parseFloat(e.target.value) || 0)}
                                 className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                             />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            {/* Check if updating stock is possible in edit mode. Usually not via this endpoint. */}
                             <label className="block text-sm font-medium text-foreground mb-1">
-                                {mode === 'edit' ? 'Stock (Estático)' : 'Stock Inicial'}
+                                {mode === 'edit' ? 'Stock (solo lectura)' : 'Stock Inicial'}
                             </label>
                             <input
                                 type="number"
                                 min={0}
-                                disabled={mode === 'edit'} // Disable stock editing in variant update if api doesn't support it
+                                disabled={mode === 'edit'}
                                 value={form.stock_actual}
-                                onChange={(e) => setForm({ ...form, stock_actual: parseInt(e.target.value) || 0 })}
+                                onChange={(e) => updateField('stock_actual', parseInt(e.target.value) || 0)}
                                 className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-brand focus:border-transparent disabled:opacity-60 disabled:bg-muted transition-all"
                             />
+                            {mode === 'edit' && (
+                                <p className="text-xs text-muted-foreground mt-1">Usar Ajuste de Stock para cambiar.</p>
+                            )}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-foreground mb-1">Stock Mínimo</label>
@@ -512,11 +621,19 @@ function VariantModal({ mode, initialData, productId, onClose, onSuccess }: Vari
                                 type="number"
                                 min={0}
                                 value={form.stock_minimo || ''}
-                                onChange={(e) => setForm({ ...form, stock_minimo: parseInt(e.target.value) || 0 })}
+                                onChange={(e) => updateField('stock_minimo', parseInt(e.target.value) || 0)}
                                 className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                             />
                         </div>
                     </div>
+
+                    {error && (
+                        <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl text-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
                     <div className="flex gap-3 pt-2">
                         <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-input text-muted-foreground font-medium hover:bg-muted hover:text-foreground transition-colors">
                             Cancelar
@@ -526,6 +643,153 @@ function VariantModal({ mode, initialData, productId, onClose, onSuccess }: Vari
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    )
+}
+
+// ============ STOCK ADJUST MODAL ============
+interface StockAdjustModalProps {
+    variant: Variant;
+    onClose: () => void;
+    onSuccess: () => void;
+}
+
+function StockAdjustModal({ variant, onClose, onSuccess }: StockAdjustModalProps) {
+    const [action, setAction] = useState<'add' | 'subtract'>('add')
+    const [amount, setAmount] = useState<number | ''>('')
+    const [reason, setReason] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault()
+        if (!amount || amount <= 0) return setError('Ingresa una cantidad válida')
+        if (!reason.trim()) return setError('Ingresa el motivo del ajuste')
+
+        const diff = action === 'add' ? Number(amount) : -Number(amount)
+        if (action === 'subtract' && variant.stock_actual + diff < 0) {
+            return setError('El stock no puede ser negativo')
+        }
+
+        setLoading(true)
+        setError(null)
+        try {
+            await adjustStock({ variante_id: variant.id, cantidad: diff, motivo: reason })
+            onSuccess()
+            toast.success(`Stock actualizado exitosamente. Nuevo total: ${variant.stock_actual + diff}`)
+        } catch (err: any) {
+            setError(err?.message || 'Error al ajustar stock')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-card rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-border">
+                <h2 className="text-xl font-bold text-foreground mb-1">Ajustar Stock</h2>
+                <p className="text-sm text-muted-foreground mb-6">SKU: {variant.sku || 'N/A'}</p>
+
+                <div className="flex bg-muted p-1 rounded-xl mb-6">
+                    <button
+                        type="button"
+                        onClick={() => setAction('add')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${action === 'add' ? 'bg-card text-emerald-500 shadow-sm border border-border' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                        <PlusCircle size={16} /> Entra
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setAction('subtract')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${action === 'subtract' ? 'bg-card text-destructive shadow-sm border border-border' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                        <MinusCircle size={16} /> Sale
+                    </button>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Cantidad</label>
+                        <input
+                            type="number"
+                            min="1"
+                            value={amount}
+                            onChange={(e) => {
+                                setError(null);
+                                setAmount(e.target.value ? parseInt(e.target.value) : '')
+                            }}
+                            className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
+                            placeholder="Ej: 5"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1 text-right">
+                            Nuevo stock será: <span className="font-bold text-foreground">
+                                {variant.stock_actual + (action === 'add' ? Number(amount || 0) : -Number(amount || 0))}
+                            </span>
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-foreground mb-1">Motivo</label>
+                        <input
+                            type="text"
+                            value={reason}
+                            onChange={(e) => { setError(null); setReason(e.target.value) }}
+                            className="w-full px-3 py-2.5 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
+                            placeholder="Inventario, merma, devolución..."
+                        />
+                    </div>
+
+                    {error && (
+                        <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl text-sm animate-in fade-in slide-in-from-top-1">
+                            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                        <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-input text-muted-foreground font-medium hover:bg-muted transition-colors">
+                            Cancelar
+                        </button>
+                        <button type="submit" disabled={loading} className={`flex-1 py-2.5 rounded-xl text-white font-medium disabled:opacity-50 flex items-center justify-center gap-2 transition-colors ${action === 'add' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-destructive hover:bg-destructive/90'}`}>
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirmar'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    )
+}
+
+// ============ DELETE CONFIRM MODAL ============
+interface DeleteConfirmProps {
+    label: string;
+    loading: boolean;
+    onConfirm: () => void;
+    onCancel: () => void;
+}
+
+function DeleteConfirmModal({ label, loading, onConfirm, onCancel }: DeleteConfirmProps) {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-card rounded-2xl w-full max-w-sm p-6 shadow-2xl border border-border">
+                <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4 mx-auto">
+                    <Trash2 className="w-6 h-6 text-destructive" />
+                </div>
+                <h2 className="text-xl font-bold text-foreground mb-2 text-center">Confirmar eliminación</h2>
+                <p className="text-muted-foreground text-center mb-6 text-sm">
+                    ¿Estás seguro de que deseas eliminar <b>{label}</b>? Esta acción no se puede deshacer.
+                </p>
+
+                <div className="flex gap-3">
+                    <button onClick={onCancel} disabled={loading} className="flex-1 py-2.5 rounded-xl border border-input bg-card text-foreground font-medium hover:bg-muted transition-colors">
+                        Cancelar
+                    </button>
+                    <button onClick={onConfirm} disabled={loading} className="flex-1 py-2.5 rounded-xl bg-destructive text-white font-medium hover:bg-destructive/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                        {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                        Eliminar
+                    </button>
+                </div>
             </div>
         </div>
     )
