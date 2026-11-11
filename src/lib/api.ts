@@ -1,4 +1,5 @@
 import { createClient as createSupabaseClient } from './supabase/client';
+import { getApiErrorDetail } from './errors';
 
 // Use Next.js rewrite proxy to avoid CORS
 const API_URL = '/api/python';
@@ -115,9 +116,23 @@ export type CashStatusResponse = {
     usuario_id?: string;
 };
 
+export type CashSummary = {
+    sesion_id: string;
+    estado: string;
+    fecha_apertura: string;
+    monto_apertura: number;
+    ventas_efectivo: number;
+    ventas_tarjeta: number;
+    ventas_qr: number;
+    cantidad_ventas: number;
+    ingresos: number;
+    egresos: number;
+    /** Authoritative expected cash: apertura + cash sales of this session + ingresos - egresos */
+    esperado_efectivo: number;
+};
+
 export type CashOpen = {
     monto_apertura: number;
-    usuario_id: string;
 };
 
 export type CashClose = {
@@ -205,28 +220,29 @@ export async function fetchCashStatus(): Promise<CashStatusResponse | null> {
     return res.json();
 }
 
-export async function openRegister(data: Omit<CashOpen, 'usuario_id'>): Promise<CashStatusResponse> {
+export async function fetchCashSummary(): Promise<CashSummary | null> {
     const headers = await getAuthHeaders();
-
-    // We get the user from the supabase client to inject the ID
-    const supabase = createSupabaseClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) throw new Error('Usuario no autenticado');
-
-    const payload: CashOpen = {
-        ...data,
-        usuario_id: user.id
-    };
-
-    const res = await fetch(`${API_URL}/caja/apertura`, {
-        method: 'POST',
+    const res = await fetch(`${API_URL}/caja/resumen`, {
         headers,
-        body: JSON.stringify(payload),
+        cache: 'no-store'
     });
     if (!res.ok) {
         const error = await res.json().catch(() => ({}));
-        throw new Error(error.detail || 'Error opening register');
+        throw new Error(getApiErrorDetail(error, 'Failed to fetch cash summary'));
+    }
+    return res.json();
+}
+
+export async function openRegister(data: CashOpen): Promise<CashStatusResponse> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/caja/apertura`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ monto_apertura: data.monto_apertura }),
+    });
+    if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(getApiErrorDetail(error, 'Error opening register'));
     }
     return res.json();
 }
@@ -240,7 +256,7 @@ export async function closeRegister(data: CashClose): Promise<CashStatusResponse
     });
     if (!res.ok) {
         const error = await res.json().catch(() => ({}));
-        throw new Error(error.detail || 'Error closing register');
+        throw new Error(getApiErrorDetail(error, 'Error closing register'));
     }
     return res.json();
 }
@@ -284,7 +300,7 @@ export async function createCashMovement(data: CashMovementCreate): Promise<Cash
     });
     if (!res.ok) {
         const error = await res.json().catch(() => ({}));
-        throw new Error(error.detail || 'Error creating movement');
+        throw new Error(getApiErrorDetail(error, 'Error creating movement'));
     }
     return res.json();
 }
@@ -504,30 +520,35 @@ export async function updateClient(id: string, data: ClientUpdate): Promise<Clie
 
 // ============ NEW SALE (POS) ============
 
+export type PaymentMethod = 'Efectivo' | 'Tarjeta' | 'QR';
+
 export type SaleItemCreate = {
     variante_id: string;
     cantidad: number;
-    precio_unitario: number;
 };
 
+// Prices and total are NOT sent: the backend takes them from the database.
 export type SaleCreate = {
     cliente_id?: string | null;
-    metodo_pago: string;
+    metodo_pago: PaymentMethod;
     items: SaleItemCreate[];
-    // Nota: 'total' no se envía. El backend lo recalcula internamente por seguridad.
 };
 
-export async function processSale(data: SaleCreate): Promise<SaleResponse> {
+/**
+ * Registers a sale. `idempotencyKey` makes retries safe: the same key
+ * returns the same sale instead of creating a duplicate.
+ */
+export async function processSale(data: SaleCreate, idempotencyKey: string): Promise<SaleResponse> {
     const headers = await getAuthHeaders();
     const res = await fetch(`${API_URL}/ventas/`, {
         method: 'POST',
-        headers,
+        headers: { ...headers, 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify(data),
     });
 
     if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to process sale');
+        throw new Error(getApiErrorDetail(errorData, 'Failed to process sale'));
     }
     return res.json();
 }
