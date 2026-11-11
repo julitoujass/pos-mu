@@ -19,7 +19,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { fetchMe } from '@/lib/api'
+import { CurrentUserProvider, useCurrentUser } from '@/lib/auth/current-user'
 
 const sidebarItems = [
     { name: 'Panel Principal', href: '/dashboard', icon: LayoutDashboard },
@@ -33,23 +33,19 @@ const sidebarItems = [
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <CurrentUserProvider>
+            <DashboardShell>{children}</DashboardShell>
+        </CurrentUserProvider>
+    )
+}
+
+function DashboardShell({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const pathname = usePathname()
     const router = useRouter()
     const supabase = createClient()
-    const [userRole, setUserRole] = useState<string>('empleado')
-
-    React.useEffect(() => {
-        async function loadRole() {
-            try {
-                const me = await fetchMe();
-                setUserRole(me.rol);
-            } catch (err) {
-                console.error("Error loading profile role", err);
-            }
-        }
-        loadRole();
-    }, [])
+    const { isAdmin } = useCurrentUser()
 
     async function handleSignOut() {
         await supabase.auth.signOut()
@@ -87,7 +83,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                     <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
                         {sidebarItems.map((item) => {
-                            if (item.adminOnly && userRole !== 'admin') return null;
+                            if (item.adminOnly && !isAdmin) return null;
 
                             const isActive = pathname === item.href
                             return (

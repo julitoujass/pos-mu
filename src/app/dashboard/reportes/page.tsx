@@ -22,6 +22,7 @@ import {
     ArrowDownRight
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AdminOnly } from '@/components/auth/admin-only'
 
 // ---- Helpers ----
 function fmt(n: number) {
@@ -44,6 +45,14 @@ const PRESETS = [
 ]
 
 export default function ReportesPage() {
+    return (
+        <AdminOnly>
+            <ReportesContent />
+        </AdminOnly>
+    )
+}
+
+function ReportesContent() {
     const [preset, setPreset] = useState(1) // default: 7 días
     const [fechaInicio, setFechaInicio] = useState(PRESETS[1].start)
     const [fechaFin, setFechaFin] = useState(PRESETS[1].end)
