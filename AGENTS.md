@@ -77,11 +77,13 @@ src/
 │   ├── auth/login-form.tsx        # Formulario de login con Supabase
 │   ├── theme-provider.tsx         # Wrapper de next-themes
 │   ├── theme-toggle.tsx           # Botón light/dark
+│   ├── auth/admin-only.tsx        # <AdminOnly>: guard de página para rutas solo admin
 │   └── ui/skeleton.tsx            # Componente de skeleton loader
 ├── lib/
 │   ├── api.ts                     # Todas las funciones fetch + types TypeScript
-│   ├── errors.ts                  # getErrorMessage(error, fallback) para catch; getApiErrorDetail(body, fallback) para errores del backend (string o array 422)
+│   ├── errors.ts                  # getErrorMessage, getApiErrorDetail, ApiError (con status), isInactiveUserError
 │   ├── errors.test.ts             # Tests de los helpers de errores
+│   ├── auth/current-user.tsx      # CurrentUserProvider + useCurrentUser() (usuario/rol compartido)
 │   ├── money.ts                   # roundMoney / formatMoney / parseMoneyInput (dinero)
 │   ├── money.test.ts              # Tests de los helpers de dinero
 │   ├── api.test.ts                # Tests de api.ts (fetch mockeado)
@@ -109,10 +111,30 @@ Los tests viven junto al código que prueban (`*.test.ts`), por ejemplo `src/app
 - **Logout:** `supabase.auth.signOut()` desde el sidebar → redirect a `/`.
 
 ### Roles
+
+El backend aplica la matriz de permisos; la UI la refleja para no mostrar acciones que devolverían 403.
+
+| Capacidad | empleado | admin |
+|---|---|---|
+| Vender, abrir/cerrar caja, ingresos/egresos, resumen de la sesión actual | ✅ | ✅ |
+| Ver productos y stock | ✅ (sin costos ni márgenes) | ✅ (con costos y márgenes) |
+| Leer marcas y categorías | ✅ (solo lectura) | ✅ |
+| Crear/editar clientes | ✅ | ✅ |
+| Crear/editar productos y variantes, precios y costos | ❌ | ✅ |
+| Ajustar stock, borrar productos/variantes | ❌ | ✅ |
+| Crear/editar/borrar marcas y categorías | ❌ | ✅ |
+| Reportes | ❌ | ✅ |
+| Historial de sesiones de caja anteriores (`/caja/sesiones*`) | ❌ | ✅ |
+| Gestión de usuarios (rol y activo/inactivo) | ❌ | ✅ |
+
 - El backend valida el token con `supabase.auth.get_user()` y obtiene el rol desde `perfiles → roles` (cache en memoria de 5 min; si falla, el rol por defecto es `empleado`). Ver `admin-mu/app/api/auth_deps.py`.
-- **Solo admin** (`RoleChecker(["admin"])`, responde 403): `/reportes/*`, `/usuarios/*` (excepto `/usuarios/me`), `DELETE /productos/{id}` y `DELETE /productos/variante/{id}`. El resto de endpoints solo exige sesión válida (incluidas las escrituras de catálogos).
-- En el front, `dashboard/layout.tsx` llama a `fetchMe()` y oculta los ítems `adminOnly` (Reportes, Usuarios) si el rol no es `admin`. Las páginas no tienen guard propio: la protección real es el 403 del backend. `productos/page.tsx` también usa `fetchMe()` para mostrar los botones de borrado solo a admin.
-- El proxy de Next (`src/proxy.ts`, que usa el helper `lib/supabase/middleware.ts`) solo verifica sesión, no rol.
+- Respuestas: 403 `{detail}` si no tiene permiso; `precio_costo` llega `null` para empleado; los usuarios inactivos reciben 403 "Usuario inactivo" en todas las llamadas.
+- `GET /usuarios/me` devuelve `{ id, email, rol, activo }`.
+- **`CurrentUserProvider` / `useCurrentUser()`** (`src/lib/auth/current-user.tsx`): `dashboard/layout.tsx` envuelve el dashboard con el provider, que llama a `fetchMe()` **una sola vez**. Las páginas usan `const { user, isAdmin, loading } = useCurrentUser()`; **no llamar a `fetchMe()` directamente** desde páginas. Si `/usuarios/me` responde 403 "Usuario inactivo", el provider cierra la sesión de Supabase, muestra un toast y redirige a `/`.
+- **`<AdminOnly>`** (`src/components/auth/admin-only.tsx`): envuelve el contenido de las páginas solo-admin (`reportes`, `usuarios`). Muestra skeleton mientras carga y, si no es admin, un estado vacío "No tenés permisos para ver esta sección" (sin redirect). El patrón es: `export default` renderiza `<AdminOnly><XContent /></AdminOnly>` para que los fetch de admin no se disparen para empleados.
+- El sidebar oculta Reportes y Usuarios (`adminOnly`) si no es admin; Catálogos es visible para todos.
+- Los controles de escritura se ocultan con `isAdmin` (productos, catálogos, historial de caja). La protección real sigue siendo el 403 del backend.
+- **Errores de API:** `api.ts` usa `toApiError(res, fallback)` en todos los `!res.ok`: lanza `ApiError` (con `status`) cuyo mensaje es el `detail` del backend (403, 409, 400, 422) o el `fallback`. Los toasts muestran ese mensaje con `getErrorMessage`.
 
 ---
 
@@ -152,10 +174,11 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - **Cierre:** Formulario con monto real en efectivo + observaciones → `closeRegister()`. El monto se valida con `parseMoneyInput` (sin NaN, ≥ 0) y el modal de confirmación muestra el efectivo esperado y la diferencia (real − esperado).
 - **Movimientos:** Ingresos y egresos manuales (`createCashMovement()`).
 - **Efectivo esperado:** viene de `fetchCashSummary()` → `GET /caja/resumen` (autoritativo en el backend: apertura + ventas en efectivo de ESTA sesión + ingresos − egresos). La tarjeta muestra el desglose: apertura, ventas en efectivo, tarjeta, QR, ingresos, egresos y efectivo esperado. Se refresca tras cada movimiento y con `refreshTrigger`.
-- **Sesiones anteriores:** Modal con historial de todas las sesiones y sus movimientos.
+- **Sesiones anteriores (solo admin):** el botón y el modal con el historial de sesiones y sus movimientos solo se muestran a admin (`/caja/sesiones*` es admin en el backend). El resto de la página es igual para ambos roles.
 - **Componentes internos (inline):** `OpenRegisterForm`, `CashSummary`, `ShiftSalesSummary`, `MovementsTable`, `CloseRegisterForm`, `MovementModal`, `SessionsHistoryModal`.
 
 ### 4. `/dashboard/productos` — Gestión de Productos
+- **empleado:** solo consulta (búsqueda, tabla de variantes con precio de venta, stock y alerta de stock bajo); sin costos, márgenes ni acciones de escritura. **admin:** todo lo de abajo.
 - Modelo: `Producto` (nombre, descripción, marca_id) tiene N `Variantes` (SKU, talle, color, precio_costo, precio_venta, stock_actual, stock_minimo).
 - Lista expandible: click en producto muestra tabla de variantes con margen calculado localmente `((venta - costo) / venta * 100)`.
 - Alerta visual de stock bajo: si `stock_actual <= stock_minimo`.
@@ -169,7 +192,7 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 ### 5. `/dashboard/catalogos` — Marcas y Categorías
 - Dos listados con modales CRUD: marcas (`nombre`, `contacto_nombre`, `telefono`, `email`) y categorías (`nombre`, `descripcion`, `tiendanube_id`).
 - Usa `fetchMarcas/createMarca/updateMarca/deleteMarca` y `fetchCategorias/createCategoria/updateCategoria/deleteCategoria`. Los errores de borrado del backend se muestran en toast.
-- Visible para todos los roles (el backend no restringe estas escrituras a admin).
+- Visible para todos los roles: **empleado = solo lectura** (se ocultan crear/editar/borrar); **admin** puede crear, editar y borrar.
 
 ### 6. `/dashboard/clientes` — Gestión de Clientes
 - Tabla con columnas: Cliente (nombre + DNI/CUIT), Contacto (email + teléfono), Ubicación (dirección + ciudad).
@@ -185,7 +208,10 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 
 ### 8. `/dashboard/usuarios` — Usuarios (solo admin)
 - Lista usuarios (`fetchUsers()`) y roles disponibles (`fetchRoles()`).
-- Un dropdown por fila cambia el rol con `updateUserRole(id, rol_id)` → `PATCH /usuarios/{id}/rol`, con actualización optimista del estado local.
+- Un dropdown por fila cambia el rol con `updateUserRole(id, rol_id)` → `PATCH /usuarios/{id}/rol`.
+- Un toggle Activo/Inactivo por fila llama a `updateUserActive(id, activo)` → `PATCH /usuarios/{id}/activo`.
+- Ambos cambios piden confirmación (`window.confirm`), **no son optimistas** (el estado local se actualiza con la respuesta del backend; ante error el control vuelve solo) y muestran el `detail` del backend en el toast (409: "No podés quitarte el rol de administrador" / "Debe quedar al menos un administrador activo"; 400: rol inexistente).
+- La fila del usuario actual (`useCurrentUser().user.id`) tiene rol y toggle deshabilitados.
 
 ---
 
@@ -306,6 +332,7 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 6. **Skeleton loaders:** Usar el componente `<Skeleton>` de `@/components/ui/skeleton` mientras cargan los datos.
 7. **Toasts:** Usar `toast.error()` / `toast.success()` de **Sonner** para feedback al usuario.
 8. **Bloques `catch`:** Usar `catch (error: unknown)` (nunca `any`) y obtener el mensaje con `getErrorMessage(error, 'mensaje por defecto')` de `@/lib/errors`.
+9. **Roles:** leer el rol con `useCurrentUser()` (nunca `fetchMe()` en páginas) y proteger páginas solo-admin con `<AdminOnly>`.
 
 ---
 
