@@ -1,6 +1,7 @@
 'use client'
 
 import { getErrorMessage } from '@/lib/errors'
+import { formatMoney, parseMoneyInput } from '@/lib/money'
 import { useState, useEffect } from 'react'
 import {
     fetchCashStatus,
@@ -10,10 +11,10 @@ import {
     createCashMovement,
     fetchCashSessions,
     fetchSessionMovements,
-    fetchSalesToday,
+    fetchCashSummary,
     CashStatusResponse,
     CashMovement,
-    SaleResponse
+    CashSummary as CashSummaryData
 } from '@/lib/api'
 import {
     Loader2,
@@ -33,8 +34,7 @@ import { toast } from 'sonner'
 export default function CajaPage() {
     const [cashStatus, setCashStatus] = useState<CashStatusResponse | null>(null)
     const [movements, setMovements] = useState<CashMovement[]>([])
-    const [cashSalesToday, setCashSalesToday] = useState<SaleResponse[]>([])
-    const [allSalesToday, setAllSalesToday] = useState<SaleResponse[]>([])
+    const [summary, setSummary] = useState<CashSummaryData | null>(null)
     const [loading, setLoading] = useState(true)
     const [refreshTrigger, setRefreshTrigger] = useState(0)
     const [showSessionsModal, setShowSessionsModal] = useState(false)
@@ -43,21 +43,22 @@ export default function CajaPage() {
         async function loadData() {
             try {
                 setLoading(true)
-                const [status, salesData] = await Promise.all([
-                    fetchCashStatus(),
-                    fetchSalesToday().catch(() => [])
-                ])
+                const status = await fetchCashStatus()
                 setCashStatus(status)
-                setAllSalesToday(salesData)
-                // Filtrar solo ventas en efectivo para el saldo de caja
-                setCashSalesToday(salesData.filter(s => s.metodo_pago === 'Efectivo' || s.metodo_pago.toLowerCase().includes('efectivo')))
 
                 if (status?.estado === 'abierta') {
-                    const movs = await fetchCashMovements()
+                    const [movs, summaryData] = await Promise.all([
+                        fetchCashMovements(),
+                        fetchCashSummary()
+                    ])
                     setMovements(movs)
+                    setSummary(summaryData)
+                } else {
+                    setMovements([])
+                    setSummary(null)
                 }
-            } catch (err) {
-                console.error(err)
+            } catch (err: unknown) {
+                toast.error(getErrorMessage(err, 'Error al cargar los datos de caja'))
             } finally {
                 setLoading(false)
             }
@@ -137,10 +138,10 @@ export default function CajaPage() {
                 <OpenRegisterForm onSuccess={refresh} />
             ) : (
                 <div className="space-y-6">
-                    <CashSummary status={cashStatus} movements={movements} cashSalesTotal={cashSalesToday.reduce((acc, s) => acc + s.total, 0)} onSuccess={refresh} />
-                    <ShiftSalesSummary sales={allSalesToday} />
+                    <CashSummary status={cashStatus} summary={summary} onSuccess={refresh} />
+                    <ShiftSalesSummary summary={summary} />
                     <MovementsTable movements={movements} />
-                    <CloseRegisterForm status={cashStatus} onSuccess={refresh} />
+                    <CloseRegisterForm summary={summary} onSuccess={refresh} />
                 </div>
             )}
 
@@ -160,10 +161,15 @@ function OpenRegisterForm({ onSuccess }: { onSuccess: () => void }) {
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
+        const parsed = parseMoneyInput(amount)
+        if (parsed === null) {
+            setError('Ingresa un monto inicial válido (0 o mayor).')
+            return
+        }
         setLoading(true)
         setError(null)
         try {
-            await openRegister({ monto_apertura: Number(amount) })
+            await openRegister({ monto_apertura: parsed })
             onSuccess()
         } catch (err: unknown) {
             setError(getErrorMessage(err, 'Error al abrir caja'))
@@ -186,13 +192,13 @@ function OpenRegisterForm({ onSuccess }: { onSuccess: () => void }) {
                     <div className="relative">
                         <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                         <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             required
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
                             className="w-full pl-10 pr-4 py-3 rounded-xl border border-input bg-background text-foreground text-lg font-bold focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
-                            placeholder="0.00"
+                            placeholder="0,00"
                         />
                     </div>
                 </div>
@@ -218,45 +224,28 @@ function OpenRegisterForm({ onSuccess }: { onSuccess: () => void }) {
 
 // ============ CASH SUMMARY & ACTIONS ============
 
-function CashSummary({ status, movements, cashSalesTotal, onSuccess }: { status: CashStatusResponse, movements: CashMovement[], cashSalesTotal: number, onSuccess: () => void }) {
+function CashSummary({ status, summary, onSuccess }: { status: CashStatusResponse, summary: CashSummaryData | null, onSuccess: () => void }) {
     const [modalType, setModalType] = useState<'ingreso' | 'egreso' | null>(null)
 
-    // Calculate dynamic balance
-    // Start + Incomes - Expenses
-    // Note: 'status.monto_apertura' is initial. Backend may allow fetching current balance directly, but calculating locally is fine for now.
-    // Wait, Sales are NOT movements?
-    // WARNING: Sales increase cash but are not usually in 'cash_movements' table unless triggered.
-    // However, usually Sales are separate.
-    // Ideally the backend should return the *current* balance or I should fetch sales too.
-    // For simplicity, let's assume 'monto_apertura' is static.
-    // I need to fetch *Sales* to calculate real cash?
-    // Or does the backend handle "Sales" as movements automatically?
-    // Let's assume for now that only "Movements" affect this view, or I'd need fetchSalesToday() here too.
-    // I'll fetchSalesToday() too in the main component to be accurate?
-    // Actually, let's keep it simple: Show 'Monto Inicial' and 'Movimientos Manuales'.
-    // A sophisticated POS calculates Sales automatically.
-    // Let's add Sales to the calculation if possible.
-    // I'll leave it as simplistic "Movements" for now, and maybe the user will ask about Sales.
-    // Actually, I can't ignore Sales.
-    // But lines 38-40 in `loadData` only fetch movements.
-    // I will stick to movements for now.
-
-    const totalIngresos = movements.filter(m => m.tipo === 'ingreso').reduce((acc, m) => acc + m.monto, 0)
-    const totalEgresos = movements.filter(m => m.tipo === 'egreso').reduce((acc, m) => acc + m.monto, 0)
-    // Saldo estimado = Monto inicial + Ventas en efectivo del día + Ingresos manuales - Egresos manuales
-    const estimatedBalance = (status.monto_apertura || 0) + cashSalesTotal + totalIngresos - totalEgresos
-
+    // The backend is the source of truth for the session balance
+    // (apertura + cash sales of this session + ingresos - egresos).
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-card p-6 rounded-2xl border border-border shadow-sm flex flex-col justify-between">
                 <div>
-                    <p className="text-sm font-medium text-muted-foreground">Saldo Estimado Efectivo</p>
-                    <h3 className="text-4xl font-bold text-foreground mt-2">${estimatedBalance.toLocaleString('es-AR')}</h3>
+                    <p className="text-sm font-medium text-muted-foreground">Efectivo esperado</p>
+                    <h3 className="text-4xl font-bold text-foreground mt-2">
+                        {summary ? formatMoney(summary.esperado_efectivo) : '—'}
+                    </h3>
                 </div>
                 <div className="mt-4 text-xs text-muted-foreground space-y-1">
-                    <div>Inicial: ${status.monto_apertura?.toLocaleString('es-AR')}</div>
-                    <div>Ventas efectivo hoy: <span className="text-green-600 font-medium">+${cashSalesTotal.toLocaleString('es-AR')}</span></div>
-                    <div>Apertura: {new Date(status.fecha_apertura).toLocaleTimeString()}</div>
+                    <div>Apertura: {formatMoney(summary?.monto_apertura ?? status.monto_apertura ?? 0)}</div>
+                    <div>Ventas en efectivo: <span className="text-green-600 font-medium">{summary ? `+${formatMoney(summary.ventas_efectivo)}` : '—'}</span></div>
+                    <div>Ventas con tarjeta: {summary ? formatMoney(summary.ventas_tarjeta) : '—'}</div>
+                    <div>Ventas QR: {summary ? formatMoney(summary.ventas_qr) : '—'}</div>
+                    <div>Ingresos: <span className="text-green-600 font-medium">{summary ? `+${formatMoney(summary.ingresos)}` : '—'}</span></div>
+                    <div>Egresos: <span className="text-red-600 font-medium">{summary ? `-${formatMoney(summary.egresos)}` : '—'}</span></div>
+                    <div>Abierta desde: {new Date(status.fecha_apertura).toLocaleTimeString('es-AR')}</div>
                 </div>
             </div>
 
@@ -289,15 +278,15 @@ function CashSummary({ status, movements, cashSalesTotal, onSuccess }: { status:
 
 // ============ SHIFT SALES SUMMARY ============
 
-function ShiftSalesSummary({ sales }: { sales: SaleResponse[] }) {
-    const totalVentas = sales.reduce((acc, s) => acc + s.total, 0)
-    
-    // Group sales by payment method dynamically
-    const salesByMethod = sales.reduce((acc, sale) => {
-        const method = sale.metodo_pago || 'Otro';
-        acc[method] = (acc[method] || 0) + sale.total;
-        return acc;
-    }, {} as Record<string, number>);
+function ShiftSalesSummary({ summary }: { summary: CashSummaryData | null }) {
+    const byMethod: [string, number][] = summary
+        ? [
+            ['Efectivo', summary.ventas_efectivo],
+            ['Tarjeta', summary.ventas_tarjeta],
+            ['QR', summary.ventas_qr],
+        ]
+        : []
+    const totalVentas = byMethod.reduce((acc, [, amount]) => acc + amount, 0)
 
     return (
         <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -310,16 +299,16 @@ function ShiftSalesSummary({ sales }: { sales: SaleResponse[] }) {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-brand/10 border border-brand/20 p-4 rounded-xl text-center md:col-span-4 lg:col-span-1 flex flex-col justify-center">
                         <p className="text-sm font-bold text-brand uppercase tracking-wider mb-1">Total Pagado</p>
-                        <p className="text-3xl font-bold text-foreground">${totalVentas.toLocaleString('es-AR')}</p>
+                        <p className="text-3xl font-bold text-foreground">{formatMoney(totalVentas)}</p>
                     </div>
                     <div className="md:col-span-4 lg:col-span-3 grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {Object.entries(salesByMethod).map(([method, amount]) => (
+                        {byMethod.map(([method, amount]) => (
                             <div key={method} className="bg-muted/50 border border-border p-4 rounded-xl text-center flex flex-col justify-center">
                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">{method}</p>
-                                <p className="text-lg font-bold text-foreground">${amount.toLocaleString('es-AR')}</p>
+                                <p className="text-lg font-bold text-foreground">{formatMoney(amount)}</p>
                             </div>
                         ))}
-                        {Object.keys(salesByMethod).length === 0 && (
+                        {(!summary || summary.cantidad_ventas === 0) && (
                             <div className="col-span-full py-4 text-center text-muted-foreground text-sm">
                                 No se han registrado ventas en este turno.
                             </div>
@@ -373,7 +362,7 @@ function MovementsTable({ movements }: { movements: CashMovement[] }) {
                                         {m.motivo || m.descripcion}
                                     </td>
                                     <td className={`p-4 text-right font-bold font-mono ${m.tipo === 'ingreso' ? 'text-green-700' : 'text-red-600'}`}>
-                                        {m.tipo === 'ingreso' ? '+' : '-'}${m.monto.toLocaleString('es-AR')}
+                                        {m.tipo === 'ingreso' ? '+' : '-'}{formatMoney(m.monto)}
                                     </td>
                                 </tr>
                             ))
@@ -387,24 +376,36 @@ function MovementsTable({ movements }: { movements: CashMovement[] }) {
 
 // ============ CLOSE REGISTER FORM ============
 
-function CloseRegisterForm({ onSuccess }: { status: CashStatusResponse, onSuccess: () => void }) {
+function CloseRegisterForm({ summary, onSuccess }: { summary: CashSummaryData | null, onSuccess: () => void }) {
     const [finalAmount, setFinalAmount] = useState('')
     const [notes, setNotes] = useState('')
     const [loading, setLoading] = useState(false)
     const [showConfirm, setShowConfirm] = useState(false)
+    const [confirmAmount, setConfirmAmount] = useState(0)
+
+    function handleSubmit(e: React.FormEvent) {
+        e.preventDefault()
+        const parsed = parseMoneyInput(finalAmount)
+        if (parsed === null) {
+            toast.error('Ingresa un monto real válido (0 o mayor).')
+            return
+        }
+        setConfirmAmount(parsed)
+        setShowConfirm(true)
+    }
 
     async function executeClose() {
         setLoading(true)
         setShowConfirm(false)
         try {
             await closeRegister({
-                monto_real_efectivo: Number(finalAmount),
-                observaciones: notes
+                monto_real_efectivo: confirmAmount,
+                observaciones: notes.trim() || undefined
             })
+            toast.success('Caja cerrada correctamente')
             onSuccess()
-        } catch (err) {
-            console.error(err)
-            toast.error('Error al cerrar caja')
+        } catch (err: unknown) {
+            toast.error(getErrorMessage(err, 'Error al cerrar caja'))
         } finally {
             setLoading(false)
         }
@@ -417,7 +418,7 @@ function CloseRegisterForm({ onSuccess }: { status: CashStatusResponse, onSucces
                     <Lock size={20} /> Cerrar Caja
                 </h3>
                 <form
-                    onSubmit={(e) => { e.preventDefault(); setShowConfirm(true) }}
+                    onSubmit={handleSubmit}
                     className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end"
                 >
                     <div>
@@ -425,13 +426,13 @@ function CloseRegisterForm({ onSuccess }: { status: CashStatusResponse, onSucces
                         <div className="relative">
                             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                             <input
-                                type="number"
+                                type="text"
+                                inputMode="decimal"
                                 required
-                                step="0.01"
                                 value={finalAmount}
                                 onChange={(e) => setFinalAmount(e.target.value)}
                                 className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-input bg-background text-foreground font-bold focus:ring-2 focus:ring-destructive focus:border-transparent"
-                                placeholder="0.00"
+                                placeholder="0,00"
                             />
                         </div>
                     </div>
@@ -440,6 +441,7 @@ function CloseRegisterForm({ onSuccess }: { status: CashStatusResponse, onSucces
                         <input
                             type="text"
                             value={notes}
+                            maxLength={500}
                             onChange={(e) => setNotes(e.target.value)}
                             className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-foreground focus:ring-2 focus:ring-destructive focus:border-transparent"
                             placeholder="Todo en orden..."
@@ -457,7 +459,8 @@ function CloseRegisterForm({ onSuccess }: { status: CashStatusResponse, onSucces
 
             {showConfirm && (
                 <ConfirmCloseModal
-                    amount={Number(finalAmount)}
+                    amount={confirmAmount}
+                    expected={summary ? summary.esperado_efectivo : null}
                     onConfirm={executeClose}
                     onCancel={() => setShowConfirm(false)}
                 />
@@ -470,10 +473,12 @@ function CloseRegisterForm({ onSuccess }: { status: CashStatusResponse, onSucces
 
 function ConfirmCloseModal({
     amount,
+    expected,
     onConfirm,
     onCancel
 }: {
     amount: number;
+    expected: number | null;
     onConfirm: () => void;
     onCancel: () => void;
 }) {
@@ -487,9 +492,20 @@ function ConfirmCloseModal({
                     <div>
                         <h3 className="text-lg font-bold text-foreground">¿Cerrar el turno?</h3>
                         <p className="text-sm text-muted-foreground mt-1">
-                            Se registrará <span className="font-bold text-foreground">${amount.toLocaleString('es-AR')}</span> como efectivo real.
+                            Se registrará <span className="font-bold text-foreground">{formatMoney(amount)}</span> como efectivo real.
                             Esta acción no se puede deshacer.
                         </p>
+                        {expected !== null && (
+                            <div className="mt-3 text-sm text-muted-foreground space-y-1">
+                                <div>Efectivo esperado: <span className="font-bold text-foreground">{formatMoney(expected)}</span></div>
+                                <div>
+                                    Diferencia:{' '}
+                                    <span className={`font-bold ${Math.abs(amount - expected) < 0.005 ? 'text-green-600' : 'text-destructive'}`}>
+                                        {formatMoney(amount - expected)}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <div className="flex gap-3 w-full pt-2">
                         <button
@@ -530,18 +546,22 @@ function MovementModal({ initialType, onClose, onSuccess }: { initialType: 'ingr
             toast.error('Tipo de movimiento inválido')
             return
         }
+        const parsed = parseMoneyInput(amount)
+        if (parsed === null || parsed <= 0) {
+            toast.error('Ingresa un monto válido mayor a 0.')
+            return
+        }
         setLoading(true)
         try {
             await createCashMovement({
                 tipo: type,
-                monto: Number(amount),
+                monto: parsed,
                 motivo: desc
             })
             onSuccess()
             onClose()
-        } catch (err) {
-            console.error(err)
-            toast.error('Error al registrar movimiento')
+        } catch (err: unknown) {
+            toast.error(getErrorMessage(err, 'Error al registrar movimiento'))
         } finally {
             setLoading(false)
         }
@@ -575,13 +595,13 @@ function MovementModal({ initialType, onClose, onSuccess }: { initialType: 'ingr
                     <div>
                         <label className="block text-sm font-medium text-foreground mb-1">Monto</label>
                         <input
-                            type="number"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             required
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
                             className="w-full px-4 py-3 rounded-xl border border-input bg-background text-foreground font-bold text-lg focus:ring-2 focus:ring-brand focus:border-transparent"
-                            placeholder="0.00"
+                            placeholder="0,00"
                         />
                     </div>
                     <div>
@@ -717,7 +737,7 @@ function SessionsHistoryModal({ onClose }: { onClose: () => void }) {
                                                         {m.motivo || m.descripcion}
                                                     </td>
                                                     <td className={`p-4 text-right font-bold font-mono ${m.tipo === 'ingreso' ? 'text-green-700' : 'text-red-600'}`}>
-                                                        {m.tipo === 'ingreso' ? '+' : '-'}${m.monto.toLocaleString('es-AR')}
+                                                        {m.tipo === 'ingreso' ? '+' : '-'}{formatMoney(m.monto)}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -762,12 +782,12 @@ function SessionsHistoryModal({ onClose }: { onClose: () => void }) {
                                             <div className="flex gap-6">
                                                 <div className="flex flex-col">
                                                     <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Inicial</span>
-                                                    <span className="text-sm font-bold font-mono text-foreground">${s.monto_apertura.toLocaleString('es-AR')}</span>
+                                                    <span className="text-sm font-bold font-mono text-foreground">{formatMoney(s.monto_apertura)}</span>
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Cierre Real</span>
                                                     <span className="text-sm font-bold font-mono text-foreground">
-                                                        {s.monto_real_efectivo !== undefined && s.monto_real_efectivo !== null ? `$${s.monto_real_efectivo.toLocaleString('es-AR')}` : '-'}
+                                                        {s.monto_real_efectivo !== undefined && s.monto_real_efectivo !== null ? formatMoney(s.monto_real_efectivo) : '-'}
                                                     </span>
                                                 </div>
                                             </div>
