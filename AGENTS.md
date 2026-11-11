@@ -80,8 +80,11 @@ src/
 │   └── ui/skeleton.tsx            # Componente de skeleton loader
 ├── lib/
 │   ├── api.ts                     # Todas las funciones fetch + types TypeScript
-│   ├── errors.ts                  # getErrorMessage(error, fallback) para bloques catch
-│   ├── errors.test.ts             # Tests de getErrorMessage
+│   ├── errors.ts                  # getErrorMessage(error, fallback) para catch; getApiErrorDetail(body, fallback) para errores del backend (string o array 422)
+│   ├── errors.test.ts             # Tests de los helpers de errores
+│   ├── money.ts                   # roundMoney / formatMoney / parseMoneyInput (dinero)
+│   ├── money.test.ts              # Tests de los helpers de dinero
+│   ├── api.test.ts                # Tests de api.ts (fetch mockeado)
 │   └── supabase/
 │       ├── client.ts              # createClient() para uso client-side
 │       ├── server.ts              # createClient() para uso server-side
@@ -137,18 +140,20 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - **Carrito local:** Estado React con validación de stock en tiempo real.
 - **Métodos de pago:** Efectivo, Tarjeta, QR (enum fijo, no configurable desde UI).
 - **Cliente:** Selector modal que filtra por nombre, DNI o email. Default es "Consumidor Final" (cliente_id = null).
-- **Proceso de venta:** Al confirmar, llama a `processSale()` y recarga las variantes para actualizar stock local.
+- **Precios del lado del servidor:** el front envía solo `{ variante_id, cantidad }` por ítem, el método de pago y el cliente. Los precios y el total los toma el backend de la DB; el total mostrado en pantalla es una estimación (`roundMoney`/`formatMoney`) y el toast de éxito muestra el `total` real devuelto por el servidor.
+- **Idempotency-Key:** se genera un `crypto.randomUUID()` por intento de cobro y se envía en el header `Idempotency-Key` (`processSale(data, key)`). Se reutiliza si el usuario reintenta tras un error (el backend devuelve la misma venta, sin duplicar) y se reinicia tras una venta exitosa o al cambiar carrito, método de pago o cliente.
+- **Proceso de venta:** Al confirmar, llama a `processSale()` y recarga las variantes para actualizar stock local. Si la recarga falla, se muestra el éxito de la venta más un toast de advertencia aparte (nunca como error de venta). Los errores del backend (400 sin caja abierta, 409 stock insuficiente, 404, 422) se muestran con su `detail` en un toast.
 - **Componente interno:** `ClientSelectorModal` (inline en el mismo archivo).
 
 ### 3. `/dashboard/caja` — Gestión de Caja
 - Maneja sesiones de caja (turnos).
 - **Estados de caja:** `abierta` | `cerrada`
-- **Apertura:** Formulario con monto inicial → `openRegister()` (inyecta `usuario_id` desde Supabase).
-- **Cierre:** Formulario con monto real en efectivo + observaciones → `closeRegister()`.
+- **Apertura:** Formulario con monto inicial → `openRegister()` (solo envía `monto_apertura`; el `usuario_id` sale del token). El monto se valida con `parseMoneyInput`.
+- **Cierre:** Formulario con monto real en efectivo + observaciones → `closeRegister()`. El monto se valida con `parseMoneyInput` (sin NaN, ≥ 0) y el modal de confirmación muestra el efectivo esperado y la diferencia (real − esperado).
 - **Movimientos:** Ingresos y egresos manuales (`createCashMovement()`).
-- **Saldo estimado:** Calculado localmente como `monto_apertura + ingresos - egresos` (⚠️ NO incluye ventas en efectivo, solo movimientos manuales).
+- **Efectivo esperado:** viene de `fetchCashSummary()` → `GET /caja/resumen` (autoritativo en el backend: apertura + ventas en efectivo de ESTA sesión + ingresos − egresos). La tarjeta muestra el desglose: apertura, ventas en efectivo, tarjeta, QR, ingresos, egresos y efectivo esperado. Se refresca tras cada movimiento y con `refreshTrigger`.
 - **Sesiones anteriores:** Modal con historial de todas las sesiones y sus movimientos.
-- **Componentes internos (inline):** `OpenRegisterForm`, `CashSummary`, `MovementsTable`, `CloseRegisterForm`, `MovementModal`, `SessionsHistoryModal`.
+- **Componentes internos (inline):** `OpenRegisterForm`, `CashSummary`, `ShiftSalesSummary`, `MovementsTable`, `CloseRegisterForm`, `MovementModal`, `SessionsHistoryModal`.
 
 ### 4. `/dashboard/productos` — Gestión de Productos
 - Modelo: `Producto` (nombre, descripción, marca_id) tiene N `Variantes` (SKU, talle, color, precio_costo, precio_venta, stock_actual, stock_minimo).
@@ -194,11 +199,13 @@ VariantUpdate { sku?, talle?, color?, precio_venta?, precio_costo?, stock_minimo
 // (sin stock_actual — solo se puede setear al crear)
 
 // Ventas
-SaleCreate { cliente_id?, metodo_pago, items: SaleItemCreate[], total }
-SaleItemCreate { variante_id, cantidad, precio_unitario }
+SaleCreate { cliente_id?, metodo_pago: 'Efectivo'|'Tarjeta'|'QR', items: SaleItemCreate[] }  // sin precios ni total
+SaleItemCreate { variante_id, cantidad }
 SaleResponse { id, total, metodo_pago, created_at }
 
 // Caja
+CashSummary { sesion_id, estado, fecha_apertura, monto_apertura, ventas_efectivo, ventas_tarjeta, ventas_qr, cantidad_ventas, ingresos, egresos, esperado_efectivo }
+// fetchCashSummary() devuelve null si no hay caja abierta
 CashStatusResponse { id, estado, monto_apertura, fecha_apertura, fecha_cierre?, monto_real_efectivo?, monto_esperado_efectivo?, observaciones?, usuario_id? }
 CashMovement { id, sesion_id?, caja_id?, tipo: 'ingreso'|'egreso', monto, motivo?, descripcion?, created_at, usuario_id? }
 
@@ -229,6 +236,7 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 | Ventas | GET | `/api/v1/ventas/hoy` |
 | Ventas | POST | `/api/v1/ventas/` |
 | Caja | GET | `/api/v1/caja/estado` |
+| Caja | GET | `/api/v1/caja/resumen` (`null` si no hay sesión abierta) |
 | Caja | POST | `/api/v1/caja/apertura` |
 | Caja | POST | `/api/v1/caja/cierre` |
 | Caja | GET | `/api/v1/caja/movimientos` |
@@ -294,7 +302,7 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 2. **Un archivo = un módulo completo:** Las páginas incluyen los modales y sub-componentes inline en el mismo archivo.
 3. **No hay state management global** (sin Zustand/Redux). Todo el estado es local con `useState`.
 4. **Refresh de datos:** Se usa un `refreshTrigger` counter en `useState` para refrescar sin extraer lógica.
-5. **Formateo de números:** `toLocaleString('es-AR')` para pesos argentinos.
+5. **Dinero:** usar siempre `formatMoney` (muestra `$1.234,50`), `roundMoney` (redondeo a 2 decimales sin drift de float) y `parseMoneyInput` (acepta `1234.5`, `1234,5`, `1.234,50`; `null` si es inválido o negativo) de `@/lib/money`. No usar `toLocaleString` suelto ni `Number(input)` para montos.
 6. **Skeleton loaders:** Usar el componente `<Skeleton>` de `@/components/ui/skeleton` mientras cargan los datos.
 7. **Toasts:** Usar `toast.error()` / `toast.success()` de **Sonner** para feedback al usuario.
 8. **Bloques `catch`:** Usar `catch (error: unknown)` (nunca `any`) y obtener el mensaje con `getErrorMessage(error, 'mensaje por defecto')` de `@/lib/errors`.
@@ -305,7 +313,7 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 
 ### Frontend
 - ⚠️ **Stock en edición de variante:** El campo `stock_actual` está deshabilitado en el modal de edición porque el endpoint PATCH de variantes no lo acepta. Para ajustar stock se usa el endpoint `/api/v1/productos/inventario/stock`.
-- ⚠️ **Saldo de caja:** El "Saldo Estimado" en caja solo considera movimientos manuales, **no las ventas en efectivo**. El total real estaría incompleto sin cruzar datos de ventas.
+- ✅ **Saldo de caja:** el efectivo esperado se obtiene de `GET /caja/resumen` e incluye las ventas en efectivo de la sesión.
 - ⚠️ **Métodos de pago:** Son strings estáticos (`'Efectivo'`, `'Tarjeta'`, `'QR'`). No son configurables desde la UI.
 - ℹ️ **Módulo Configuración:** El sidebar tiene un link a `/dashboard/settings` (`layout.tsx`) pero la página no existe.
 - ℹ️ **Categorías de productos:** El backend tiene la tabla `producto_categorias` (N:M) y el filtro `?categoria_id=`, pero `ProductCreate`/`ProductResponse` no tienen campo de categoría: desde la UI no se puede asignar una categoría a un producto.
@@ -314,7 +322,7 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 ### Backend (`admin-mu`)
 - ⚠️ **Descuento de stock no atómico (vigente):** Al crear una venta, el stock se descuenta con SELECT + UPDATE separados por cada item, sin transacción (`venta_service.py`). Hay riesgo de race condition con ventas concurrentes, y una falla a mitad de camino deja la venta parcialmente aplicada. `ProductService.update_stock` usa el mismo patrón read-modify-write.
 - ⚠️ **Sesión de caja global:** `get_sesion_activa` no filtra por usuario: hay una única caja abierta para todos.
-- ⚠️ **`usuario_id` en apertura de caja:** `POST /caja/apertura` toma el `usuario_id` del body, no del token.
+- ✅ **`usuario_id` en apertura de caja:** ahora sale del token; el front ya no lo envía.
 - ℹ️ **Fechas:** `GET /ventas/hoy` usa la fecha local del servidor y los rangos de reportes usan timestamps sin zona horaria.
 - ✅ **Resueltos:** `GET /reportes/productos-top` ya consulta `venta_detalle` y `producto_variantes`, y `ventas.total_costo` ya se calcula a partir de `precio_costo`.
 
