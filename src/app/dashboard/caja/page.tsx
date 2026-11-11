@@ -30,8 +30,10 @@ import {
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { useCurrentUser } from '@/lib/auth/current-user'
 
 export default function CajaPage() {
+    const { isAdmin } = useCurrentUser()
     const [cashStatus, setCashStatus] = useState<CashStatusResponse | null>(null)
     const [movements, setMovements] = useState<CashMovement[]>([])
     const [summary, setSummary] = useState<CashSummaryData | null>(null)
@@ -112,13 +114,15 @@ export default function CajaPage() {
                     <p className="text-muted-foreground">Gestión de turnos y movimientos</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                    <button
-                        onClick={() => setShowSessionsModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-muted text-foreground rounded-full text-sm font-medium hover:bg-muted/80 transition-colors"
-                    >
-                        <CalendarDays size={16} />
-                        Sesiones Anteriores
-                    </button>
+                    {isAdmin && (
+                        <button
+                            onClick={() => setShowSessionsModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-muted text-foreground rounded-full text-sm font-medium hover:bg-muted/80 transition-colors"
+                        >
+                            <CalendarDays size={16} />
+                            Sesiones Anteriores
+                        </button>
+                    )}
                     {cashStatus?.estado === 'abierta' && (
                         <div className="flex items-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-medium">
                             <Unlock size={16} />
@@ -145,7 +149,7 @@ export default function CajaPage() {
                 </div>
             )}
 
-            {showSessionsModal && (
+            {isAdmin && showSessionsModal && (
                 <SessionsHistoryModal onClose={() => setShowSessionsModal(false)} />
             )}
         </div>

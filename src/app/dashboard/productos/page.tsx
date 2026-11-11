@@ -19,8 +19,8 @@ import {
     VariantCreate,
     VariantUpdate,
     Variant,
-    fetchMe
 } from '@/lib/api'
+import { useCurrentUser } from '@/lib/auth/current-user'
 
 export default function ProductsPage() {
     const [products, setProducts] = useState<Product[]>([])
@@ -28,7 +28,7 @@ export default function ProductsPage() {
     const [error, setError] = useState<string | null>(null)
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
-    const [userRole, setUserRole] = useState<string>('empleado')
+    const { isAdmin } = useCurrentUser()
 
     // Modal states
     const [productModalMode, setProductModalMode] = useState<'create' | 'edit'>('create')
@@ -65,15 +65,6 @@ export default function ProductsPage() {
 
     useEffect(() => {
         loadProducts()
-        async function loadRole() {
-            try {
-                const me = await fetchMe();
-                setUserRole(me.rol);
-            } catch {
-                // Ignore
-            }
-        }
-        loadRole()
     }, [])
 
     function handleCreateProduct() {
@@ -136,13 +127,15 @@ export default function ProductsPage() {
                     <h1 className="text-3xl font-bold text-foreground">Productos</h1>
                     <p className="text-muted-foreground">Gestiona tu catálogo de productos</p>
                 </div>
-                <button
-                    onClick={handleCreateProduct}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl font-medium hover:bg-brand-hover transition-colors shadow-lg shadow-brand/20 self-start sm:self-auto"
-                >
-                    <Plus size={20} />
-                    Nuevo Producto
-                </button>
+                {isAdmin && (
+                    <button
+                        onClick={handleCreateProduct}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl font-medium hover:bg-brand-hover transition-colors shadow-lg shadow-brand/20 self-start sm:self-auto"
+                    >
+                        <Plus size={20} />
+                        Nuevo Producto
+                    </button>
+                )}
             </div>
 
             {/* Search Bar */}
@@ -192,7 +185,7 @@ export default function ProductsPage() {
                         >
                             Limpiar búsqueda
                         </button>
-                    ) : (
+                    ) : isAdmin && (
                         <button
                             onClick={handleCreateProduct}
                             className="mt-4 text-brand font-medium hover:underline"
@@ -216,13 +209,15 @@ export default function ProductsPage() {
                                     <div>
                                         <h3 className="font-semibold text-foreground flex items-center gap-2">
                                             {product.nombre}
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); handleEditProduct(product); }}
-                                                className="p-1 rounded-full text-muted-foreground hover:text-brand hover:bg-brand/10 transition-colors"
-                                                title="Editar Producto"
-                                            >
-                                                <Pencil size={14} />
-                                            </button>
+                                            {isAdmin && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleEditProduct(product); }}
+                                                    className="p-1 rounded-full text-muted-foreground hover:text-brand hover:bg-brand/10 transition-colors"
+                                                    title="Editar Producto"
+                                                >
+                                                    <Pencil size={14} />
+                                                </button>
+                                            )}
                                         </h3>
                                         <p className="text-sm text-muted-foreground">
                                             {product.variantes.length} variante{product.variantes.length !== 1 ? 's' : ''}
@@ -231,13 +226,15 @@ export default function ProductsPage() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); handleCreateVariant(product.id); }}
-                                        className="px-3 py-1.5 text-sm font-medium text-brand bg-brand/10 rounded-lg hover:bg-brand/20 transition-colors"
-                                    >
-                                        + Variante
-                                    </button>
-                                    {userRole === 'admin' && (
+                                    {isAdmin && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleCreateVariant(product.id); }}
+                                            className="px-3 py-1.5 text-sm font-medium text-brand bg-brand/10 rounded-lg hover:bg-brand/20 transition-colors"
+                                        >
+                                            + Variante
+                                        </button>
+                                    )}
+                                    {isAdmin && (
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'product', item: product }) }}
                                             className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
@@ -263,13 +260,13 @@ export default function ProductsPage() {
                                             <table className="w-full text-sm">
                                                 <thead>
                                                     <tr className="text-left text-muted-foreground border-b border-border">
-                                                        <th className="pb-2 font-medium">Acciones</th>
+                                                        {isAdmin && <th className="pb-2 font-medium">Acciones</th>}
                                                         <th className="pb-2 font-medium">SKU</th>
                                                         <th className="pb-2 font-medium">Talle</th>
                                                         <th className="pb-2 font-medium">Color</th>
-                                                        <th className="pb-2 font-medium text-right">Costo</th>
+                                                        {isAdmin && <th className="pb-2 font-medium text-right">Costo</th>}
                                                         <th className="pb-2 font-medium text-right">Venta</th>
-                                                        <th className="pb-2 font-medium text-right">Margen</th>
+                                                        {isAdmin && <th className="pb-2 font-medium text-right">Margen</th>}
                                                         <th className="pb-2 font-medium text-right">Min.</th>
                                                         <th className="pb-2 font-medium text-right">Stock</th>
                                                     </tr>
@@ -284,45 +281,51 @@ export default function ProductsPage() {
 
                                                         return (
                                                             <tr key={variant.id} className="border-b border-border last:border-0 hover:bg-card/50">
-                                                                <td className="py-2">
-                                                                    <div className="flex items-center gap-1">
-                                                                        <button
-                                                                            onClick={() => handleEditVariant(product.id, variant)}
-                                                                            className="p-1.5 rounded-lg text-muted-foreground hover:text-brand hover:bg-brand/10 transition-colors"
-                                                                            title="Editar"
-                                                                        >
-                                                                            <Pencil size={14} />
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => setStockAdjustVariant(variant)}
-                                                                            className="p-1.5 rounded-lg text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors"
-                                                                            title="Ajustar stock"
-                                                                        >
-                                                                            <PlusCircle size={14} />
-                                                                        </button>
-                                                                        {userRole === 'admin' && (
+                                                                {isAdmin && (
+                                                                    <td className="py-2">
+                                                                        <div className="flex items-center gap-1">
                                                                             <button
-                                                                                onClick={() => setDeleteTarget({ type: 'variant', item: variant })}
-                                                                                className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                                                                title="Eliminar variante"
+                                                                                onClick={() => handleEditVariant(product.id, variant)}
+                                                                                className="p-1.5 rounded-lg text-muted-foreground hover:text-brand hover:bg-brand/10 transition-colors"
+                                                                                title="Editar"
                                                                             >
-                                                                                <Trash2 size={14} />
+                                                                                <Pencil size={14} />
                                                                             </button>
-                                                                        )}
-                                                                    </div>
-                                                                </td>
+                                                                            <button
+                                                                                onClick={() => setStockAdjustVariant(variant)}
+                                                                                className="p-1.5 rounded-lg text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+                                                                                title="Ajustar stock"
+                                                                            >
+                                                                                <PlusCircle size={14} />
+                                                                            </button>
+                                                                            {isAdmin && (
+                                                                                <button
+                                                                                    onClick={() => setDeleteTarget({ type: 'variant', item: variant })}
+                                                                                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                                                                    title="Eliminar variante"
+                                                                                >
+                                                                                    <Trash2 size={14} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                )}
                                                                 <td className="py-2 text-foreground font-mono text-xs">{variant.sku || '-'}</td>
                                                                 <td className="py-2 text-muted-foreground">{variant.talle || '-'}</td>
                                                                 <td className="py-2 text-muted-foreground">{variant.color || '-'}</td>
-                                                                <td className="py-2 text-right text-muted-foreground">
-                                                                    ${costo.toLocaleString('es-AR')}
-                                                                </td>
+                                                                {isAdmin && (
+                                                                    <td className="py-2 text-right text-muted-foreground">
+                                                                        ${costo.toLocaleString('es-AR')}
+                                                                    </td>
+                                                                )}
                                                                 <td className="py-2 text-right text-foreground font-medium">
                                                                     ${venta.toLocaleString('es-AR')}
                                                                 </td>
-                                                                <td className="py-2 text-right text-muted-foreground font-mono text-xs">
-                                                                    {margen !== '-' ? `${margen}%` : '-'}
-                                                                </td>
+                                                                {isAdmin && (
+                                                                    <td className="py-2 text-right text-muted-foreground font-mono text-xs">
+                                                                        {margen !== '-' ? `${margen}%` : '-'}
+                                                                    </td>
+                                                                )}
                                                                 <td className="py-2 text-right text-muted-foreground">
                                                                     {stockMin}
                                                                 </td>

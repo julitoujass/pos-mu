@@ -17,10 +17,12 @@ import {
     Marca,
     Categoria
 } from '@/lib/api'
+import { useCurrentUser } from '@/lib/auth/current-user'
 
 type Tab = 'marcas' | 'categorias'
 
 export default function CatalogosPage() {
+    const { isAdmin } = useCurrentUser()
     const [activeTab, setActiveTab] = useState<Tab>('marcas')
     
     // Data
@@ -123,9 +125,9 @@ export default function CatalogosPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Catálogos</h1>
-                    <p className="text-muted-foreground mt-1">Gestiona las marcas y categorías de tu inventario.</p>
+                    <p className="text-muted-foreground mt-1">{isAdmin ? 'Gestiona las marcas y categorías de tu inventario.' : 'Consultá las marcas y categorías del inventario.'}</p>
                 </div>
-                {activeTab === 'marcas' ? (
+                {isAdmin && (activeTab === 'marcas' ? (
                     <button
                         onClick={openCreateMarca}
                         className="flex items-center gap-2 bg-brand text-white px-5 py-2.5 rounded-xl font-medium hover:bg-brand-hover transition-colors shadow-lg shadow-brand/20"
@@ -141,7 +143,7 @@ export default function CatalogosPage() {
                         <Plus size={20} />
                         Nueva Categoría
                     </button>
-                )}
+                ))}
             </div>
 
             {/* Tabs */}
@@ -190,6 +192,7 @@ export default function CatalogosPage() {
                                             {marca.telefono && <span>📞 {" " + marca.telefono}</span>}
                                         </div>
                                     </div>
+                                    {isAdmin && (
                                     <div className="flex items-center gap-2">
                                         <button onClick={() => openEditMarca(marca)} className="p-2 text-muted-foreground hover:text-brand hover:bg-brand/10 rounded-lg transition-colors">
                                             <Edit size={18} />
@@ -198,6 +201,7 @@ export default function CatalogosPage() {
                                             <Trash2 size={18} />
                                         </button>
                                     </div>
+                                    )}
                                 </div>
                             ))
                         )}
@@ -213,6 +217,7 @@ export default function CatalogosPage() {
                                         <h3 className="font-bold text-foreground text-lg">{cat.nombre}</h3>
                                         {cat.descripcion && <p className="text-sm text-muted-foreground mt-1">{cat.descripcion}</p>}
                                     </div>
+                                    {isAdmin && (
                                     <div className="flex items-center gap-2">
                                         <button onClick={() => openEditCategoria(cat)} className="p-2 text-muted-foreground hover:text-brand hover:bg-brand/10 rounded-lg transition-colors">
                                             <Edit size={18} />
@@ -221,6 +226,7 @@ export default function CatalogosPage() {
                                             <Trash2 size={18} />
                                         </button>
                                     </div>
+                                    )}
                                 </div>
                             ))
                         )}
