@@ -18,6 +18,7 @@ import {
     Tags,
     AlertTriangle,
     ScrollText,
+    CreditCard,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -37,6 +38,7 @@ const sidebarItems = [
     { name: 'Clientes', href: '/dashboard/clientes', icon: Users },
     { name: 'Reportes', href: '/dashboard/reportes', icon: BarChart2, adminOnly: true },
     { name: 'Usuarios', href: '/dashboard/usuarios', icon: Users, adminOnly: true },
+    { name: 'Pagos', href: '/dashboard/pagos', icon: CreditCard, adminOnly: true },
     { name: 'Auditoría', href: '/dashboard/auditoria', icon: ScrollText, adminOnly: true },
 ]
 

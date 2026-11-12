@@ -4,8 +4,10 @@ import { Settings } from 'lucide-react'
 import { ErrorState } from '@/components/ui/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AdminOnly } from '@/features/auth'
+import { useTerminalStatus } from '@/features/pagos'
 import { useBusinessSettings } from '../hooks/use-business-settings'
 import { SettingsForm } from './settings-form'
+import { TerminalSettingsSection } from './terminal-settings-section'
 
 export function SettingsPage() {
     return (
@@ -17,6 +19,7 @@ export function SettingsPage() {
 
 function SettingsContent() {
     const { settings, setSettings, loading, error, reload } = useBusinessSettings()
+    const terminal = useTerminalStatus()
 
     return (
         <div className="space-y-6">
@@ -33,6 +36,9 @@ function SettingsContent() {
             {settings && (
                 // Remount with the saved copy so the form always reflects the backend.
                 <SettingsForm key={settings.updated_at ?? 'initial'} settings={settings} onSaved={setSettings} />
+            )}
+            {terminal.status && (
+                <TerminalSettingsSection key={JSON.stringify(terminal.status)} status={terminal.status} onSaved={terminal.reload} />
             )}
         </div>
     )
