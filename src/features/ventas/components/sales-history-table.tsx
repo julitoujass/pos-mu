@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/dates'
 import { Eye } from 'lucide-react'
 import { formatMoney } from '@/lib/money'
 import type { SaleListItem } from '../types'
@@ -28,7 +29,7 @@ export function SalesHistoryTable({ sales, onViewDetail }: SalesHistoryTableProp
                         {sales.map(sale => (
                             <tr key={sale.id} className={`hover:bg-muted/50 ${sale.estado === 'anulada' ? 'opacity-70' : ''}`}>
                                 <td className="p-4 whitespace-nowrap text-foreground">
-                                    {new Date(sale.created_at).toLocaleString('es-AR')}
+                                    {formatDateTime(sale.created_at)}
                                 </td>
                                 <td className="p-4 text-foreground">{sale.cliente?.nombre ?? 'Consumidor Final'}</td>
                                 <td className="p-4 text-muted-foreground">{sale.usuario?.nombre ?? '-'}</td>

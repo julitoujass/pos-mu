@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/dates'
 import { Undo2 } from 'lucide-react'
 import { formatMoney } from '@/lib/money'
 import type { SaleDetail } from '../types'
@@ -22,7 +23,7 @@ export function SaleReturnsHistory({ sale }: { sale: SaleDetail }) {
                     <li key={ret.id} className="p-3 rounded-xl border border-border bg-muted/30 text-sm space-y-1">
                         <div className="flex justify-between gap-2">
                             <span className="text-muted-foreground">
-                                {new Date(ret.created_at).toLocaleString('es-AR')}
+                                {formatDateTime(ret.created_at)}
                                 {ret.usuario && ` · ${ret.usuario.nombre}`}
                             </span>
                             <span className="font-bold text-foreground">-{formatMoney(ret.monto)}</span>

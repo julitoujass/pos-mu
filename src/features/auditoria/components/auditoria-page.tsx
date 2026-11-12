@@ -1,5 +1,6 @@
 'use client'
 
+import { formatDateTime } from '@/lib/dates'
 import { useState } from 'react'
 import { Eye, ScrollText } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -88,7 +89,7 @@ function AuditTable({ entries, onViewDetail }: { entries: AuditEntry[]; onViewDe
                 <tbody className="divide-y divide-border">
                     {entries.map(entry => (
                         <tr key={entry.id} className="hover:bg-muted/50 transition-colors">
-                            <td className="p-4 whitespace-nowrap text-foreground">{new Date(entry.created_at).toLocaleString('es-AR')}</td>
+                            <td className="p-4 whitespace-nowrap text-foreground">{formatDateTime(entry.created_at)}</td>
                             <td className="p-4 font-medium text-foreground">{entry.evento}</td>
                             <td className="p-4 text-muted-foreground">{entry.entidad}</td>
                             <td className="p-4 text-muted-foreground max-w-xs truncate">{entry.descripcion ?? '-'}</td>

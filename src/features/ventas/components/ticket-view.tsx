@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/dates'
 import type { BusinessSettings } from '@/features/configuracion'
 import { formatMoney } from '@/lib/money'
 import type { SaleDetail } from '../types'
@@ -20,7 +21,7 @@ function buildTicketLines(sale: SaleDetail, settings: BusinessSettings | null): 
         if (settings.telefono) lines.push(centerText(`Tel: ${settings.telefono}`, w))
     }
     lines.push(divider('=', w))
-    lines.push(`Fecha: ${new Date(sale.created_at).toLocaleString('es-AR')}`)
+    lines.push(`Fecha: ${formatDateTime(sale.created_at)}`)
     lines.push(`Venta: ${sale.id.slice(0, 8).toUpperCase()}`)
     if (sale.cliente) lines.push(...wrapText(`Cliente: ${sale.cliente.nombre}`, w))
     if (sale.usuario) lines.push(`Atendió: ${sale.usuario.nombre}`)

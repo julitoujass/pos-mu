@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
 import type { SaleDetail } from '../types'
 
@@ -16,7 +17,7 @@ export function CancellationInfo({ sale }: { sale: SaleDetail }) {
             <p className="font-bold">Venta anulada</p>
             {sale.motivo_anulacion && <p>Motivo: {sale.motivo_anulacion}</p>}
             <p>
-                {sale.anulada_at && `${new Date(sale.anulada_at).toLocaleString('es-AR')}`}
+                {sale.anulada_at && `${formatDateTime(sale.anulada_at)}`}
                 {sale.anulada_por && ` por ${sale.anulada_por.nombre}`}
             </p>
         </div>

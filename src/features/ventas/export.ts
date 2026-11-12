@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/dates'
 import type { CsvColumn } from '@/lib/csv'
 import { fetchSales } from './api'
 import type { SaleListItem, SalesFilters, SalesPage } from './types'
@@ -21,7 +22,7 @@ export async function fetchAllSales(
 }
 
 export const SALES_CSV_COLUMNS: CsvColumn<SaleListItem>[] = [
-    { header: 'Fecha', value: s => new Date(s.created_at).toLocaleString('es-AR') },
+    { header: 'Fecha', value: s => formatDateTime(s.created_at) },
     { header: 'Cliente', value: s => s.cliente?.nombre ?? 'Consumidor Final' },
     { header: 'Vendedor', value: s => s.usuario?.nombre ?? '' },
     { header: 'Método', value: s => s.metodo_pago },

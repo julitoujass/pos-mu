@@ -1,5 +1,6 @@
 'use client'
 
+import { formatDateTime } from '@/lib/dates'
 import { useId } from 'react'
 import { ChevronLeft, ChevronRight, History, Loader2, X } from 'lucide-react'
 import { FormError } from '@/components/ui/form-error'
@@ -79,7 +80,7 @@ export function StockMovementsModal({ variant, onClose }: StockMovementsModalPro
                                     return (
                                         <tr key={movement.id}>
                                             <td className="p-3 whitespace-nowrap text-foreground">
-                                                {new Date(movement.created_at).toLocaleString('es-AR')}
+                                                {formatDateTime(movement.created_at)}
                                             </td>
                                             <td className="p-3">
                                                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${badge.className}`}>

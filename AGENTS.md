@@ -469,6 +469,7 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 19. **Navegación:** usar `<Link>` (no `router.push`) para navegar entre páginas: se prefetchea y dispara `<RouteProgress>` (barra superior, sin dependencias).
 20. **Animaciones:** solo las utilidades definidas en `globals.css`: `animate-fade-in`, `animate-slide-up`, `animate-scale-in` (≈200 ms, solo al entrar). No hay `tw-animate-css`: clases como `animate-in` / `fade-in` / `zoom-in-95` **no existen**. No animar con `transform` contenedores que alojen modales (`position: fixed`); para esos usar `animate-fade-in`. `prefers-reduced-motion` desactiva animaciones y transiciones globalmente (los spinners siguen girando). Los importes y contadores que cambian llevan `tabular-nums`.
 21. **POS (`/dashboard/venta`):** agregar ítems es síncrono y local (sin spinners); tras cobrar, el carrito se limpia, el foco vuelve al SKU y el botón se libera de inmediato: el stock en pantalla se refresca en segundo plano.
+22. **Fechas:** usar `formatDateTime` / `formatTime` / `formatDate` / `formatLongDate` de `@/lib/dates` (24 h, zona horaria de la tienda); nunca `toLocaleString` / `toLocaleTimeString` sueltos (es-AR muestra 13:09 como "01:09" sin AM/PM).
 
 ---
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { formatDateTime } from '@/lib/dates'
 import { useId } from 'react'
 import { X } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
@@ -30,7 +31,7 @@ export function AuditDetailModal({ entry, onClose }: { entry: AuditEntry; onClos
                 <div>
                     <h3 id={titleId} className="text-xl font-bold text-foreground">{entry.evento}</h3>
                     <p className="text-sm text-muted-foreground">
-                        {new Date(entry.created_at).toLocaleString('es-AR')}
+                        {formatDateTime(entry.created_at)}
                         {entry.usuario && ` · ${entry.usuario.nombre}`}
                     </p>
                     {entry.descripcion && <p className="text-sm text-foreground mt-1">{entry.descripcion}</p>}

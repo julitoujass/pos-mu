@@ -1,17 +1,16 @@
+import { formatTime } from '@/lib/dates'
 import { History } from 'lucide-react'
 import { formatMoney } from '@/lib/money'
 import type { CashMovement } from '../types'
 
 type MovementsDataTableProps = {
     movements: CashMovement[]
-    /** Locale for the time column; the browser default when omitted. */
-    timeLocale?: string
     /** Row shown when there are no movements. */
     emptyMessage?: string
 }
 
 /** Bare movements table, shared by the current shift and the session history. */
-export function MovementsDataTable({ movements, timeLocale, emptyMessage }: MovementsDataTableProps) {
+export function MovementsDataTable({ movements, emptyMessage }: MovementsDataTableProps) {
     return (
         <table className="w-full text-left text-sm">
             <thead className="bg-muted text-muted-foreground font-medium">
@@ -33,7 +32,7 @@ export function MovementsDataTable({ movements, timeLocale, emptyMessage }: Move
                 {movements.map(m => (
                     <tr key={m.id} className="hover:bg-muted/30">
                         <td className="p-4 whitespace-nowrap font-mono text-muted-foreground">
-                            {new Date(m.created_at).toLocaleTimeString(timeLocale)}
+                            {formatTime(m.created_at)}
                         </td>
                         <td className="p-4">
                             <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${m.tipo === 'ingreso' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>

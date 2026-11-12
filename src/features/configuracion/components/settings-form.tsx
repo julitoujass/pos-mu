@@ -1,5 +1,6 @@
 'use client'
 
+import { formatDateTime } from '@/lib/dates'
 import { useId, useState } from 'react'
 import { Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
@@ -133,7 +134,7 @@ export function SettingsForm({ settings, onSaved }: SettingsFormProps) {
 
             <div className="flex items-center justify-between gap-4">
                 <p className="text-xs text-muted-foreground">
-                    {settings.updated_at && `Última modificación: ${new Date(settings.updated_at).toLocaleString('es-AR')}`}
+                    {settings.updated_at && `Última modificación: ${formatDateTime(settings.updated_at)}`}
                     {settings.updated_by && ` por ${settings.updated_by.nombre}`}
                 </p>
                 <button

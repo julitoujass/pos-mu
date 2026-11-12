@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { fetchCashStatus, type CashStatusResponse } from '@/features/caja'
+import { fetchCashStatus, fetchCashSummary, type CashStatusResponse, type CashSummary } from '@/features/caja'
 import { fetchLowStock } from '@/features/productos'
 import { fetchSalesToday, type SaleResponse } from '@/features/ventas'
 
@@ -9,6 +9,7 @@ import { fetchSalesToday, type SaleResponse } from '@/features/ventas'
 export function useDashboardSummary() {
     const [salesToday, setSalesToday] = useState<SaleResponse[]>([])
     const [cashStatus, setCashStatus] = useState<CashStatusResponse | null>(null)
+    const [cashSummary, setCashSummary] = useState<CashSummary | null>(null)
     const [lowStockCount, setLowStockCount] = useState<number | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -16,13 +17,15 @@ export function useDashboardSummary() {
     useEffect(() => {
         async function loadData() {
             try {
-                const [salesData, cashData, lowStock] = await Promise.all([
+                const [salesData, cashData, summaryData, lowStock] = await Promise.all([
                     fetchSalesToday().catch(() => []),
                     fetchCashStatus().catch(() => null),
+                    fetchCashSummary().catch(() => null),
                     fetchLowStock().catch(() => null),
                 ])
                 setSalesToday(salesData)
                 setCashStatus(cashData)
+                setCashSummary(summaryData)
                 setLowStockCount(lowStock?.total ?? null)
             } catch (err) {
                 setError('Error al cargar datos del dashboard')
@@ -34,5 +37,5 @@ export function useDashboardSummary() {
         loadData()
     }, [])
 
-    return { salesToday, cashStatus, lowStockCount, loading, error }
+    return { salesToday, cashStatus, cashSummary, lowStockCount, loading, error }
 }

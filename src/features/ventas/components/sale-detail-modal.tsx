@@ -1,5 +1,6 @@
 'use client'
 
+import { formatDateTime } from '@/lib/dates'
 import { useId, useState } from 'react'
 import { Ban, Loader2, Printer, Receipt, Undo2, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -65,7 +66,7 @@ export function SaleDetailModal({ saleId, onClose, onChanged }: SaleDetailModalP
                             <h3 id={titleId} className="text-xl font-bold text-foreground">Detalle de venta</h3>
                             {sale && (
                                 <p className="text-sm text-muted-foreground">
-                                    {new Date(sale.created_at).toLocaleString('es-AR')}
+                                    {formatDateTime(sale.created_at)}
                                 </p>
                             )}
                         </div>

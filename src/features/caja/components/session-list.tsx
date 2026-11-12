@@ -1,8 +1,8 @@
+import { formatTime, formatLongDate } from '@/lib/dates'
 import { CalendarDays } from 'lucide-react'
 import { formatMoney } from '@/lib/money'
 import type { CashStatusResponse } from '../types'
 
-const TIME_FORMAT: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' }
 
 type SessionListProps = {
     sessions: CashStatusResponse[]
@@ -22,15 +22,15 @@ export function SessionList({ sessions, onViewMovements }: SessionListProps) {
                             </span>
                             <span className="text-base font-bold text-foreground flex items-center gap-2">
                                 <CalendarDays className="w-4 h-4 text-muted-foreground" />
-                                {new Date(s.fecha_apertura).toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                {formatLongDate(s.fecha_apertura)}
                             </span>
                         </div>
                         <div className="text-sm text-muted-foreground flex items-center gap-3">
-                            <span><strong className="text-foreground/70">Apertura:</strong> {new Date(s.fecha_apertura).toLocaleTimeString('es-AR', TIME_FORMAT)}</span>
+                            <span><strong className="text-foreground/70">Apertura:</strong> {formatTime(s.fecha_apertura)}</span>
                             {s.fecha_cierre && (
                                 <>
                                     <span className="w-1.5 h-1.5 rounded-full bg-border"></span>
-                                    <span><strong className="text-foreground/70">Cierre:</strong> {new Date(s.fecha_cierre).toLocaleTimeString('es-AR', TIME_FORMAT)}</span>
+                                    <span><strong className="text-foreground/70">Cierre:</strong> {formatTime(s.fecha_cierre)}</span>
                                 </>
                             )}
                         </div>

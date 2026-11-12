@@ -1,5 +1,6 @@
 'use client'
 
+import { formatDateTime } from '@/lib/dates'
 import { useId } from 'react'
 import { History, Loader2, X } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
@@ -50,7 +51,7 @@ export function SessionsHistoryModal({ onClose }: { onClose: () => void }) {
                         </h3>
                         {selectedSession && (
                             <p className="text-sm text-muted-foreground mt-0.5">
-                                Apertura: {new Date(selectedSession.fecha_apertura).toLocaleString('es-AR')}
+                                Apertura: {formatDateTime(selectedSession.fecha_apertura)}
                             </p>
                         )}
                     </div>
@@ -76,7 +77,7 @@ export function SessionsHistoryModal({ onClose }: { onClose: () => void }) {
                             <EmptyNotice>No hay movimientos registrados en esta sesión.</EmptyNotice>
                         ) : (
                             <div className="overflow-x-auto border border-border rounded-xl">
-                                <MovementsDataTable movements={movements} timeLocale="es-AR" />
+                                <MovementsDataTable movements={movements} />
                             </div>
                         )}
                     </div>

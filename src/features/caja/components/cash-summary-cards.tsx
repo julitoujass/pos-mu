@@ -1,5 +1,6 @@
 'use client'
 
+import { formatTime } from '@/lib/dates'
 import { useState } from 'react'
 import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import { formatMoney } from '@/lib/money'
@@ -35,7 +36,7 @@ export function CashSummaryCards({ status, summary, onSuccess }: CashSummaryCard
                     <div>Ventas QR: {summary ? formatMoney(summary.ventas_qr) : '—'}</div>
                     <div>Ingresos: <span className="text-green-600 font-medium">{summary ? `+${formatMoney(summary.ingresos)}` : '—'}</span></div>
                     <div>Egresos: <span className="text-red-600 font-medium">{summary ? `-${formatMoney(summary.egresos)}` : '—'}</span></div>
-                    <div>Abierta desde: {new Date(status.fecha_apertura).toLocaleTimeString('es-AR')}</div>
+                    <div>Abierta desde: {formatTime(status.fecha_apertura)}</div>
                 </div>
             </div>
 

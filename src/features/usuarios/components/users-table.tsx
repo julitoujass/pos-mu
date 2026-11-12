@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/dates'
 import { ShieldCheck, Users } from 'lucide-react'
 import type { RoleResponse, UsuarioResponse } from '../types'
 
@@ -64,7 +65,7 @@ export function UsersTable({ users, roles, currentUserId, pendingId, onRoleChang
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-muted-foreground">
-                                        {new Date(user.created_at).toLocaleDateString()}
+                                        {formatDate(user.created_at)}
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">

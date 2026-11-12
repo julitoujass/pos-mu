@@ -3,12 +3,13 @@
 import Link from 'next/link'
 import { Activity, AlertCircle, AlertTriangle, DollarSign, ShoppingCart, Users } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatTime } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
 import { useDashboardSummary } from '../hooks/use-dashboard-summary'
 
 /** Landing page of the dashboard: KPIs of the day and quick actions. */
 export function DashboardHome() {
-    const { salesToday, cashStatus, lowStockCount, loading, error } = useDashboardSummary()
+    const { salesToday, cashStatus, cashSummary, lowStockCount, loading, error } = useDashboardSummary()
 
     const totalSalesAmount = salesToday.reduce((acc, sale) => acc + sale.total, 0)
     const cashStateColor = cashStatus?.estado === 'abierta' ? 'text-green-600 bg-green-100' : 'text-amber-600 bg-amber-100'
@@ -53,12 +54,12 @@ export function DashboardHome() {
                             </span>
                         </div>
                         <div>
-                            <p className="text-sm font-medium text-muted-foreground">Caja Actual</p>
+                            <p className="text-sm font-medium text-muted-foreground">Efectivo en caja</p>
                             <h3 className="text-3xl font-bold text-foreground mt-1 tabular-nums">
-                                {formatMoney(cashStatus?.monto_apertura ?? 0)}
+                                {cashSummary ? formatMoney(cashSummary.esperado_efectivo) : '-'}
                             </h3>
                             <p className="text-sm text-muted-foreground mt-1">
-                                {cashStatus?.fecha_apertura ? new Date(cashStatus.fecha_apertura).toLocaleTimeString() : 'Sin actividad'}
+                                {cashSummary ? `Abierta desde ${formatTime(cashSummary.fecha_apertura)}` : 'Caja cerrada'}
                             </p>
                         </div>
                     </div>
