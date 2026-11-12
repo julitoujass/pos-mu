@@ -5,6 +5,9 @@ import React, { useEffect, useRef } from 'react'
 const FOCUSABLE_SELECTOR =
     'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+// Open modals in mount order; only the last one (topmost) reacts to Escape.
+const openModalStack: symbol[] = []
+
 const BACKDROP_CLASS = {
     default: 'bg-black/50',
     strong: 'bg-black/60',
@@ -36,6 +39,16 @@ export function Modal({
     dismissible = true,
 }: ModalProps) {
     const panelRef = useRef<HTMLDivElement>(null)
+    const stackIdRef = useRef<symbol>(Symbol('modal'))
+
+    useEffect(() => {
+        const id = stackIdRef.current
+        openModalStack.push(id)
+        return () => {
+            const index = openModalStack.lastIndexOf(id)
+            if (index !== -1) openModalStack.splice(index, 1)
+        }
+    }, [])
 
     useEffect(() => {
         const previouslyFocused = document.activeElement as HTMLElement | null
@@ -51,7 +64,9 @@ export function Modal({
     useEffect(() => {
         if (!dismissible) return
         function handleKeyDown(e: KeyboardEvent) {
-            if (e.key === 'Escape') onClose()
+            if (e.key !== 'Escape') return
+            if (openModalStack[openModalStack.length - 1] !== stackIdRef.current) return
+            onClose()
         }
         document.addEventListener('keydown', handleKeyDown)
         return () => document.removeEventListener('keydown', handleKeyDown)

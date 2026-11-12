@@ -33,6 +33,24 @@ describe('Modal', () => {
         expect(onClose).toHaveBeenCalledTimes(1)
     })
 
+    it('only closes the topmost modal on Escape when modals are stacked', async () => {
+        const onCloseBottom = vi.fn()
+        const onCloseTop = vi.fn()
+        render(
+            <>
+                <Modal onClose={onCloseBottom} labelledBy="bottom-title">
+                    <h2 id="bottom-title">Detalle</h2>
+                </Modal>
+                <Modal onClose={onCloseTop} labelledBy="top-title">
+                    <h2 id="top-title">Devolución</h2>
+                </Modal>
+            </>,
+        )
+        await userEvent.keyboard('{Escape}')
+        expect(onCloseTop).toHaveBeenCalledTimes(1)
+        expect(onCloseBottom).not.toHaveBeenCalled()
+    })
+
     it('closes when the backdrop is clicked', async () => {
         const { onClose } = renderModal()
         await userEvent.click(screen.getByTestId('modal-backdrop'))

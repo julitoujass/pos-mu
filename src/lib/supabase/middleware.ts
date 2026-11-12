@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isProtectedPath } from './protected-paths'
 
 export async function updateSession(request: NextRequest) {
     let supabaseResponse = NextResponse.next({
@@ -39,8 +40,8 @@ export async function updateSession(request: NextRequest) {
 
     const url = request.nextUrl.clone()
 
-    // Protect Dashboard Routes
-    if (url.pathname.startsWith('/dashboard') && !user) {
+    // Protect the dashboard and the printable ticket
+    if (isProtectedPath(url.pathname) && !user) {
         url.pathname = '/'
         return NextResponse.redirect(url)
     }

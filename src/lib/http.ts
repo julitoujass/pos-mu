@@ -37,7 +37,7 @@ export async function toApiError(res: Response, fallback: string): Promise<ApiEr
 }
 
 type ApiRequestOptions = {
-    method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+    method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     /** JSON-serialized as the request body. */
     body?: unknown;
     /** Extra headers merged over the auth headers. */
