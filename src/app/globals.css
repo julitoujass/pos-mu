@@ -133,3 +133,49 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--foreground);
 }
+
+/* Motion tokens: short, subtle enter animations (this is a counter POS). */
+@theme {
+  --animate-fade-in: fade-in 200ms ease-out;
+  --animate-slide-up: slide-up 220ms ease-out;
+  --animate-scale-in: scale-in 180ms ease-out;
+  --animate-route-progress: route-progress 8s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.97) translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* Indeterminate progress: fast start, then creeps towards (never reaches) the end. */
+  @keyframes route-progress {
+    0% { transform: scaleX(0); }
+    15% { transform: scaleX(0.45); }
+    100% { transform: scaleX(0.94); }
+  }
+}
+
+/*
+ * Reduced motion: enter animations and transitions become instant. Spinners
+ * keep rotating because they are the only "work in progress" signal.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin),
+  *:not(.animate-spin)::before,
+  *:not(.animate-spin)::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

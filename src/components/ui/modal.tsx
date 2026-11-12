@@ -29,6 +29,9 @@ type ModalProps = {
  * Accessible modal shell: role="dialog", Escape and backdrop close it, focus
  * moves into the dialog on open, stays inside while tabbing and returns to the
  * previously focused element on close. Render it conditionally to open it.
+ * Enter animation: the backdrop fades in and the panel scales in (both are
+ * instant under prefers-reduced-motion). There is no exit animation because
+ * the dialog unmounts as soon as the parent stops rendering it.
  */
 export function Modal({
     onClose,
@@ -101,7 +104,7 @@ export function Modal({
         <div
             data-testid="modal-backdrop"
             onMouseDown={handleBackdropMouseDown}
-            className={`fixed inset-0 z-50 flex items-center justify-center ${BACKDROP_CLASS[backdrop]} backdrop-blur-sm p-4 animate-in fade-in duration-200`}
+            className={`fixed inset-0 z-50 flex items-center justify-center ${BACKDROP_CLASS[backdrop]} backdrop-blur-sm p-4 animate-fade-in`}
         >
             <div
                 ref={panelRef}
@@ -110,7 +113,7 @@ export function Modal({
                 aria-labelledby={labelledBy}
                 tabIndex={-1}
                 onKeyDown={trapFocus}
-                className={`outline-none ${className}`}
+                className={`outline-none animate-scale-in ${className}`}
             >
                 {children}
             </div>
