@@ -2,7 +2,7 @@ import { formatDateTime } from '@/lib/dates'
 import type { BusinessSettings } from '@/features/configuracion'
 import { formatMoney } from '@/lib/money'
 import type { SaleDetail } from '../types'
-import { TICKET_WIDTH, centerText, divider, itemLines, twoColumns, wrapText } from '../ticket-format'
+import { TICKET_WIDTH, centerText, divider, formatPaymentSummary, itemLines, twoColumns, wrapText } from '../ticket-format'
 
 type TicketViewProps = {
     sale: SaleDetail
@@ -49,6 +49,8 @@ function buildTicketLines(sale: SaleDetail, settings: BusinessSettings | null): 
     if (sale.recargo_aplicado > 0) lines.push(twoColumns('Recargo', `+${formatMoney(sale.recargo_aplicado)}`, w))
     lines.push(twoColumns('TOTAL', formatMoney(sale.total), w))
     lines.push(twoColumns('Pago', sale.metodo_pago, w))
+    const paymentSummary = formatPaymentSummary(sale.pago)
+    if (paymentSummary) lines.push(...wrapText(paymentSummary, w))
     lines.push(divider('=', w))
 
     if (settings?.pie_ticket) lines.push(...wrapText(settings.pie_ticket, w).map(l => centerText(l, w)))

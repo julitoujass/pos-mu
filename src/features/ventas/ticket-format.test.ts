@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TICKET_WIDTH, centerText, divider, itemLines, twoColumns, wrapText } from './ticket-format'
+import { TICKET_WIDTH, centerText, divider, formatPaymentSummary, itemLines, twoColumns, wrapText } from './ticket-format'
 
 describe('twoColumns', () => {
     it('pads between left and right to the given width', () => {
@@ -63,5 +63,38 @@ describe('itemLines', () => {
         )
         expect(lines.length).toBeGreaterThan(2)
         expect(lines.slice(0, -1).every(l => l.length <= 16)).toBe(true)
+    })
+})
+
+describe('formatPaymentSummary', () => {
+    const base = {
+        metodo_pago: 'Tarjeta',
+        tarjeta_marca: 'VISA',
+        tarjeta_ultimos4: '4242',
+        codigo_autorizacion: '123456',
+        cuotas: 3,
+        proveedor: 'clover',
+    }
+
+    it('joins method, brand, last four, authorization and installments', () => {
+        expect(formatPaymentSummary(base)).toBe('Tarjeta VISA •••• 4242 · Aut. 123456 · 3 cuotas')
+    })
+
+    it('uses the singular for one installment', () => {
+        expect(formatPaymentSummary({ ...base, cuotas: 1 })).toBe('Tarjeta VISA •••• 4242 · Aut. 123456 · 1 cuota')
+    })
+
+    it('skips the missing parts', () => {
+        expect(
+            formatPaymentSummary({ ...base, tarjeta_marca: null, codigo_autorizacion: null, cuotas: null }),
+        ).toBe('Tarjeta •••• 4242')
+        expect(
+            formatPaymentSummary({ ...base, tarjeta_ultimos4: null, cuotas: 0 }),
+        ).toBe('Tarjeta VISA · Aut. 123456')
+    })
+
+    it('returns null when there is no payment', () => {
+        expect(formatPaymentSummary(null)).toBeNull()
+        expect(formatPaymentSummary(undefined)).toBeNull()
     })
 })

@@ -13,7 +13,7 @@ import type { SaleDetail } from '../types'
 import { openTicket } from '../open-ticket'
 import { canRegisterReturn } from '../returns'
 import { CancelSaleDialog } from './cancel-sale-dialog'
-import { CancellationInfo, ItemsTable, Row } from './sale-detail-parts'
+import { CancellationInfo, ItemsTable, PaymentInfo, Row } from './sale-detail-parts'
 import { SaleReturnsHistory } from './sale-returns-history'
 import { SaleStatusBadge } from './sale-status-badge'
 import { ReturnModal } from './return-modal'
@@ -104,6 +104,8 @@ export function SaleDetailModal({ saleId, onClose, onChanged }: SaleDetailModalP
                                     <SaleStatusBadge status={sale.estado} />
                                 </div>
                             </div>
+
+                            <PaymentInfo sale={sale} />
 
                             {sale.estado === 'anulada' && <CancellationInfo sale={sale} />}
 

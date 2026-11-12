@@ -105,7 +105,18 @@ export type SaleReturnCreate = {
     items: SaleItemCreate[];
 };
 
+/** Terminal payment behind a sale; null for cash and manual card sales. */
+export type SalePayment = {
+    metodo_pago: string;
+    tarjeta_marca: string | null;
+    tarjeta_ultimos4: string | null;
+    codigo_autorizacion: string | null;
+    cuotas: number | null;
+    proveedor: string;
+};
+
 export type SaleDetail = SaleListItem & {
+    pago?: SalePayment | null;
     motivo_anulacion?: string | null;
     anulada_at?: string | null;
     anulada_por?: PersonRef | null;

@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import { ErrorState } from '@/components/ui/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PaymentWaitingModal } from '@/features/pagos'
 import { useNewSale } from '../hooks/use-new-sale'
+import { openTicket } from '../open-ticket'
 import { CartTable } from './cart-table'
 import { CheckoutPanel } from './checkout-panel'
 import { ClientSelectorModal } from './client-selector-modal'
@@ -12,6 +14,7 @@ import { SkuScanner } from './sku-scanner'
 /** POS screen: scanner + cart on the left, checkout on the right. */
 export function NewSalePage() {
     const sale = useNewSale()
+    const terminal = sale.terminalPayment
     const [showClientModal, setShowClientModal] = useState(false)
 
     if (sale.loadingData) {
@@ -46,6 +49,7 @@ export function NewSalePage() {
                     client={sale.clients.find(c => c.id === sale.selectedClient)}
                     hasClient={sale.selectedClient !== ''}
                     paymentMethod={sale.paymentMethod}
+                    terminalStatus={sale.terminalStatus}
                     totals={sale.totals}
                     adjustments={sale.adjustments}
                     processing={sale.processing}
@@ -58,6 +62,21 @@ export function NewSalePage() {
                     onCheckout={sale.checkout}
                 />
             </div>
+
+            {terminal.session && (
+                <PaymentWaitingModal
+                    pago={terminal.payment.pago}
+                    total={terminal.session.total}
+                    method={terminal.session.request.metodo_pago}
+                    timedOut={terminal.payment.timedOut}
+                    error={terminal.payment.error}
+                    cancelling={terminal.payment.cancelling}
+                    onCancel={terminal.payment.cancel}
+                    onPrintTicket={openTicket}
+                    onRetry={terminal.retry}
+                    onClose={terminal.close}
+                />
+            )}
 
             {showClientModal && (
                 <ClientSelectorModal

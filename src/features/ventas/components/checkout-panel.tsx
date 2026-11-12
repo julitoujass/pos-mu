@@ -1,6 +1,7 @@
 import { AlertCircle, Banknote, CheckCircle2, CreditCard, QrCode, User, UserPlus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Client } from '@/features/clientes'
+import type { TerminalStatus } from '@/features/pagos'
 import { formatMoney } from '@/lib/money'
 import type { SaleTotals } from '../pricing'
 import { PAYMENT_METHODS, type PaymentMethod } from '../types'
@@ -11,6 +12,8 @@ type CheckoutPanelProps = {
     client: Client | undefined
     hasClient: boolean
     paymentMethod: PaymentMethod
+    /** Terminal integration status; null while loading or unavailable. */
+    terminalStatus?: TerminalStatus | null
     totals: SaleTotals
     adjustments: AdjustmentsState
     processing: boolean
@@ -27,6 +30,7 @@ export function CheckoutPanel({
     client,
     hasClient,
     paymentMethod,
+    terminalStatus = null,
     totals,
     adjustments,
     processing,
@@ -114,6 +118,15 @@ export function CheckoutPanel({
                         </button>
                     ))}
                 </div>
+
+                {terminalStatus?.habilitado && (
+                    <p
+                        className={`mb-3 text-xs font-medium flex items-center gap-1.5 ${terminalStatus.conectado ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}
+                    >
+                        <span aria-hidden="true" className={`inline-block w-2 h-2 rounded-full ${terminalStatus.conectado ? 'bg-green-500' : 'bg-amber-500'}`} />
+                        {terminalStatus.conectado ? 'Clover conectado' : 'Clover desconectado'}
+                    </p>
+                )}
 
                 {paymentMethod === 'Efectivo' && (
                     <div className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 p-3 rounded-xl text-sm flex items-center gap-2">

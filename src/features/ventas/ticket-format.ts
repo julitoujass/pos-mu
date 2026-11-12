@@ -1,3 +1,5 @@
+import type { SalePayment } from './types'
+
 /** Characters per line of the 80mm ticket (monospace, ~72mm of printable width). */
 export const TICKET_WIDTH = 40
 
@@ -57,4 +59,15 @@ export type TicketItem = {
 export function itemLines(item: TicketItem, width = TICKET_WIDTH): string[] {
     const title = [item.nombre, item.detalle].filter(Boolean).join(' ')
     return [...wrapText(title, width), twoColumns(`${item.cantidad} x ${item.precio}`, item.subtotal, width)]
+}
+
+/** "Tarjeta VISA •••• 4242 · Aut. 123456 · 3 cuotas"; missing parts are skipped. */
+export function formatPaymentSummary(pago: SalePayment | null | undefined): string | null {
+    if (!pago) return null
+    const card = [pago.metodo_pago, pago.tarjeta_marca, pago.tarjeta_ultimos4 && `•••• ${pago.tarjeta_ultimos4}`]
+        .filter(Boolean)
+        .join(' ')
+    const installments = pago.cuotas ? `${pago.cuotas} ${pago.cuotas === 1 ? 'cuota' : 'cuotas'}` : null
+    const authorization = pago.codigo_autorizacion ? `Aut. ${pago.codigo_autorizacion}` : null
+    return [card, authorization, installments].filter(Boolean).join(' · ') || null
 }

@@ -1,5 +1,6 @@
 import { formatDateTime } from '@/lib/dates'
 import { formatMoney } from '@/lib/money'
+import { formatPaymentSummary } from '../ticket-format'
 import type { SaleDetail } from '../types'
 
 export function Row({ label, value, tone }: { label: string; value: string; tone?: string }) {
@@ -65,6 +66,18 @@ export function ItemsTable({ sale, isAdmin }: { sale: SaleDetail; isAdmin: boole
                     ))}
                 </tbody>
             </table>
+        </div>
+    )
+}
+
+/** Card / QR data of a sale charged through the terminal. */
+export function PaymentInfo({ sale }: { sale: SaleDetail }) {
+    const summary = formatPaymentSummary(sale.pago)
+    if (!summary) return null
+    return (
+        <div className="text-sm">
+            <p className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Pago con terminal</p>
+            <p className="text-foreground">{summary}</p>
         </div>
     )
 }
