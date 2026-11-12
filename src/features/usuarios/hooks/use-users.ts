@@ -1,39 +1,37 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/lib/errors'
+import { useAsyncData } from '@/lib/use-async-data'
 import { createUser, fetchRoles, fetchUsers, updateUserActive, updateUserRole } from '../api'
 import type { RoleResponse, UsuarioCreate, UsuarioResponse } from '../types'
+
+const NO_USERS: UsuarioResponse[] = []
+const NO_ROLES: RoleResponse[] = []
+
+async function loadUsersAndRoles() {
+    const [users, roles] = await Promise.all([fetchUsers(), fetchRoles()])
+    return { users, roles }
+}
 
 /**
  * Loads users and roles and exposes the two admin mutations. Mutations are
  * not optimistic: local state is only replaced with the backend response.
  */
 export function useUsers() {
-    const [users, setUsers] = useState<UsuarioResponse[]>([])
-    const [roles, setRoles] = useState<RoleResponse[]>([])
-    const [loading, setLoading] = useState(true)
+    const { data, loading, error, reload, setData } = useAsyncData(
+        'users',
+        loadUsersAndRoles,
+        'Error al cargar la lista de usuarios',
+    )
     const [pendingId, setPendingId] = useState<string | null>(null)
 
-    useEffect(() => {
-        async function loadData() {
-            try {
-                const [uData, rData] = await Promise.all([fetchUsers(), fetchRoles()])
-                setUsers(uData)
-                setRoles(rData)
-            } catch (error) {
-                console.error("Error cargando usuarios", error)
-                toast.error("Error al cargar la lista de usuarios. Asegúrate de ser administrador.")
-            } finally {
-                setLoading(false)
-            }
-        }
-        loadData()
-    }, [])
-
     function replaceUser(updated: UsuarioResponse) {
-        setUsers(prev => prev.map(u => (u.id === updated.id ? { ...u, ...updated } : u)))
+        setData(prev => ({
+            ...prev,
+            users: prev.users.map(u => (u.id === updated.id ? { ...u, ...updated } : u)),
+        }))
     }
 
     async function changeRole(user: UsuarioResponse, roleId: number) {
@@ -66,9 +64,19 @@ export function useUsers() {
     /** Throws on failure so the creation form can show the backend detail. */
     async function addUser(data: UsuarioCreate): Promise<UsuarioResponse> {
         const created = await createUser(data)
-        setUsers(prev => [created, ...prev])
+        setData(prev => ({ ...prev, users: [created, ...prev.users] }))
         return created
     }
 
-    return { users, roles, loading, pendingId, changeRole, changeActive, addUser }
+    return {
+        users: data?.users ?? NO_USERS,
+        roles: data?.roles ?? NO_ROLES,
+        loading,
+        error,
+        reload,
+        pendingId,
+        changeRole,
+        changeActive,
+        addUser,
+    }
 }

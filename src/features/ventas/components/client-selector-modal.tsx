@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Search, UserPlus, X } from 'lucide-react'
 import { Modal } from '@/components/ui/modal'
 import type { Client } from '@/features/clientes'
@@ -21,12 +21,16 @@ export function ClientSelectorModal({ clients, onClose, onSelect }: ClientSelect
         setTimeout(() => inputRef.current?.focus(), 100)
     }, [])
 
-    const filtered = clients.filter(c => {
-        const t = term.toLowerCase()
-        return c.nombre.toLowerCase().includes(t) ||
+    // Filter on a deferred copy of the term so typing never stutters with many clients.
+    const deferredTerm = useDeferredValue(term)
+    const filtered = useMemo(() => {
+        const t = deferredTerm.toLowerCase()
+        return clients.filter(c =>
+            c.nombre.toLowerCase().includes(t) ||
             c.dni_cuit?.includes(t) ||
             c.email?.toLowerCase().includes(t)
-    })
+        )
+    }, [clients, deferredTerm])
 
     return (
         <Modal

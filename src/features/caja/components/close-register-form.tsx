@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { DollarSign, Loader2, Lock } from 'lucide-react'
+import { DollarSign, Lock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { getErrorMessage } from '@/lib/errors'
@@ -86,13 +87,16 @@ export function CloseRegisterForm({ summary, onSuccess }: CloseRegisterFormProps
                             placeholder="Todo en orden..."
                         />
                     </div>
-                    <button
+                    <Button
                         type="submit"
-                        disabled={loading || !finalAmount}
-                        className="w-full py-2.5 rounded-xl bg-destructive text-white font-medium hover:bg-destructive/90 transition-colors shadow-lg shadow-destructive/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                        variant="destructive"
+                        loading={loading}
+                        loadingLabel="Cerrando turno..."
+                        disabled={!finalAmount}
+                        className="w-full py-2.5 font-medium shadow-lg shadow-destructive/20"
                     >
-                        {loading ? <Loader2 className="animate-spin" /> : 'Cerrar Turno'}
-                    </button>
+                        Cerrar Turno
+                    </Button>
                 </form>
             </div>
 

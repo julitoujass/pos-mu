@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Activity, AlertCircle, AlertTriangle, DollarSign, ShoppingCart, Users } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatMoney } from '@/lib/money'
@@ -9,7 +8,6 @@ import { useDashboardSummary } from '../hooks/use-dashboard-summary'
 
 /** Landing page of the dashboard: KPIs of the day and quick actions. */
 export function DashboardHome() {
-    const router = useRouter()
     const { salesToday, cashStatus, lowStockCount, loading, error } = useDashboardSummary()
 
     const totalSalesAmount = salesToday.reduce((acc, sale) => acc + sale.total, 0)
@@ -23,15 +21,12 @@ export function DashboardHome() {
             </div>
 
             {loading ? (
-                <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <Skeleton className="h-40 rounded-2xl" />
-                        <Skeleton className="h-40 rounded-2xl" />
-                        <Skeleton className="h-40 rounded-2xl" />
-                    </div>
+                // Four cards with the height of the real ones, so the grid does not jump.
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" aria-hidden="true">
+                    {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[196px] rounded-2xl" />)}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
                     <div className="p-6 bg-card rounded-2xl shadow-sm border border-border">
                         <div className="flex items-center justify-between mb-4">
                             <div className="p-3 bg-brand/10 rounded-xl">
@@ -41,7 +36,7 @@ export function DashboardHome() {
                         </div>
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">Ventas Totales</p>
-                            <h3 className="text-3xl font-bold text-foreground mt-1">
+                            <h3 className="text-3xl font-bold text-foreground mt-1 tabular-nums">
                                 {formatMoney(totalSalesAmount)}
                             </h3>
                             <p className="text-sm text-muted-foreground mt-1">{salesToday.length} transacciones</p>
@@ -59,7 +54,7 @@ export function DashboardHome() {
                         </div>
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">Caja Actual</p>
-                            <h3 className="text-3xl font-bold text-foreground mt-1">
+                            <h3 className="text-3xl font-bold text-foreground mt-1 tabular-nums">
                                 {formatMoney(cashStatus?.monto_apertura ?? 0)}
                             </h3>
                             <p className="text-sm text-muted-foreground mt-1">
@@ -80,7 +75,7 @@ export function DashboardHome() {
                         </div>
                         <div>
                             <p className="text-sm font-medium text-muted-foreground">Stock bajo</p>
-                            <h3 className="text-3xl font-bold text-foreground mt-1">{lowStockCount ?? '-'}</h3>
+                            <h3 className="text-3xl font-bold text-foreground mt-1 tabular-nums">{lowStockCount ?? '-'}</h3>
                             <p className="text-sm text-muted-foreground mt-1">
                                 {lowStockCount === 0 ? 'Todo en orden' : 'variantes bajo el mínimo'}
                             </p>
@@ -90,18 +85,19 @@ export function DashboardHome() {
                     <div className="p-6 bg-gradient-to-br from-brand to-brand-light rounded-2xl shadow-lg text-white">
                         <h3 className="text-lg font-bold mb-4">Acciones Rápidas</h3>
                         <div className="space-y-3">
-                            <button
-                                onClick={() => router.push('/dashboard/venta')}
+                            {/* Links (not router.push) so the routes are prefetched and the progress bar shows. */}
+                            <Link
+                                href="/dashboard/venta"
                                 className="w-full py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg text-sm font-medium transition-colors text-left px-4 flex items-center gap-3"
                             >
                                 <ShoppingCart size={18} /> Nueva Venta
-                            </button>
-                            <button
-                                onClick={() => router.push('/dashboard/clientes')}
+                            </Link>
+                            <Link
+                                href="/dashboard/clientes"
                                 className="w-full py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg text-sm font-medium transition-colors text-left px-4 flex items-center gap-3"
                             >
                                 <Users size={18} /> Nuevo Cliente
-                            </button>
+                            </Link>
                         </div>
                     </div>
                 </div>

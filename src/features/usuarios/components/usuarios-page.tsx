@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import { UserCog, UserPlus } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorState } from '@/components/ui/error-state'
+import { PageHeaderSkeleton } from '@/components/ui/page-skeleton'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { AdminOnly, useCurrentUser } from '@/features/auth'
 import { useUsers } from '../hooks/use-users'
 import type { UsuarioResponse } from '../types'
@@ -30,7 +32,7 @@ function fullNameOf(user: UsuarioResponse) {
 
 function UsuariosContent() {
     const { user: currentUser } = useCurrentUser()
-    const { users, roles, loading, pendingId, changeRole, changeActive, addUser } = useUsers()
+    const { users, roles, loading, error, reload, pendingId, changeRole, changeActive, addUser } = useUsers()
     const [confirmation, setConfirmation] = useState<PendingConfirmation | null>(null)
     const [creating, setCreating] = useState(false)
 
@@ -65,10 +67,14 @@ function UsuariosContent() {
     if (loading) {
         return (
             <div className="space-y-6">
-                <Skeleton className="h-10 w-48" />
-                <Skeleton className="h-64 w-full rounded-2xl" />
+                <PageHeaderSkeleton />
+                <TableSkeleton columns={4} rows={4} />
             </div>
         )
+    }
+
+    if (error) {
+        return <ErrorState message={error} onRetry={reload} />
     }
 
     return (

@@ -1,31 +1,22 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { getErrorMessage } from '@/lib/errors'
+import { useAsyncData } from '@/lib/use-async-data'
 import { fetchClients } from '../api'
 import type { Client } from '../types'
 
-/** Loads clients; `load(query)` runs the server-side search. */
-export function useClients() {
-    const [clients, setClients] = useState<Client[]>([])
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+const NO_CLIENTS: Client[] = []
 
-    async function load(query?: string) {
-        try {
-            setLoading(true)
-            const data = await fetchClients(query)
-            setClients(data)
-        } catch (err: unknown) {
-            setError(getErrorMessage(err, 'Error al cargar clientes'))
-        } finally {
-            setLoading(false)
-        }
-    }
+/**
+ * Loads clients with the server-side search `query` (pass it already debounced).
+ * A new query or `reload()` keeps the previous results visible (`refreshing`).
+ */
+export function useClients(query = '') {
+    const term = query.trim()
+    const { data, loading, refreshing, error, reload } = useAsyncData(
+        `clients:${term}`,
+        () => fetchClients(term || undefined),
+        'Error al cargar clientes',
+    )
 
-    useEffect(() => {
-        load()
-    }, [])
-
-    return { clients, loading, error, load }
+    return { clients: data ?? NO_CLIENTS, loading, refreshing, error, reload }
 }

@@ -1,39 +1,37 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { getErrorMessage } from '@/lib/errors'
+import { useAsyncData } from '@/lib/use-async-data'
 import { fetchReporteCajas, fetchReporteProductosTop, fetchReporteVentas } from '../api'
-import type { CajaResumenReporte, ProductoTopReporte, VentasTotalesReporte } from '../types'
+import type { ProductoTopReporte } from '../types'
 
-/** Loads the three reports for a date range and reloads when the range changes. */
+const NO_PRODUCTS: ProductoTopReporte[] = []
+
+/**
+ * Loads the three reports for a date range and reloads when the range changes,
+ * keeping the previous figures visible meanwhile (`refreshing`).
+ */
 export function useReportes(fechaInicio: string, fechaFin: string) {
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
-    const [ventas, setVentas] = useState<VentasTotalesReporte | null>(null)
-    const [topProductos, setTopProductos] = useState<ProductoTopReporte[]>([])
-    const [cajas, setCajas] = useState<CajaResumenReporte | null>(null)
-
-    const reload = useCallback(async () => {
-        setLoading(true)
-        setError(null)
-        try {
-            const [v, tp, c] = await Promise.all([
+    const { data, loading, refreshing, error, reload } = useAsyncData(
+        `reportes:${fechaInicio}:${fechaFin}`,
+        async () => {
+            const [ventas, topProductos, cajas] = await Promise.all([
                 fetchReporteVentas(fechaInicio, fechaFin),
                 // A failing top-products endpoint degrades to an empty list.
-                fetchReporteProductosTop(fechaInicio, fechaFin).catch(() => []),
-                fetchReporteCajas(fechaInicio, fechaFin)
+                fetchReporteProductosTop(fechaInicio, fechaFin).catch(() => NO_PRODUCTS),
+                fetchReporteCajas(fechaInicio, fechaFin),
             ])
-            setVentas(v)
-            setTopProductos(tp)
-            setCajas(c)
-        } catch (err: unknown) {
-            setError(getErrorMessage(err, 'Error al cargar reportes'))
-        } finally {
-            setLoading(false)
-        }
-    }, [fechaInicio, fechaFin])
+            return { ventas, topProductos, cajas }
+        },
+        'Error al cargar reportes',
+    )
 
-    useEffect(() => { reload() }, [reload])
-
-    return { ventas, topProductos, cajas, loading, error, reload }
+    return {
+        ventas: data?.ventas ?? null,
+        topProductos: data?.topProductos ?? NO_PRODUCTS,
+        cajas: data?.cajas ?? null,
+        loading,
+        refreshing,
+        error,
+        reload,
+    }
 }

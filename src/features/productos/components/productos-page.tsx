@@ -1,10 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { AlertCircle, Package, Plus, Search } from 'lucide-react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { Package, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { DeleteConfirmDialog } from '@/components/ui/delete-confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ErrorState } from '@/components/ui/error-state'
+import { Refreshable } from '@/components/ui/refreshable'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCurrentUser } from '@/features/auth'
 import { fetchCategorias, type Categoria } from '@/features/catalogos'
@@ -26,9 +28,10 @@ export function ProductosPage() {
     const { isAdmin } = useCurrentUser()
     const [categoriaId, setCategoriaId] = useState<number | undefined>(undefined)
     const [categorias, setCategorias] = useState<Categoria[]>([])
-    const { products, loading, error, reload } = useProducts(categoriaId)
+    const { products, loading, refreshing, error, reload } = useProducts(categoriaId)
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
+    const deferredTerm = useDeferredValue(searchTerm)
 
     const [productModal, setProductModal] = useState<ProductModalState | null>(null)
     const [variantModal, setVariantModal] = useState<VariantModalState | null>(null)
@@ -62,12 +65,15 @@ export function ProductosPage() {
         }
     }
 
-    // Client-side search by product name or variant SKU.
-    const lowerTerm = searchTerm.toLowerCase()
-    const filteredProducts = products.filter(product =>
-        product.nombre.toLowerCase().includes(lowerTerm) ||
-        product.variantes.some(v => v.sku?.toLowerCase().includes(lowerTerm))
-    )
+    // Client-side search by product name or variant SKU. The filter runs on a deferred
+    // copy of the term so typing stays responsive with a large catalog.
+    const filteredProducts = useMemo(() => {
+        const lowerTerm = deferredTerm.toLowerCase()
+        return products.filter(product =>
+            product.nombre.toLowerCase().includes(lowerTerm) ||
+            product.variantes.some(v => v.sku?.toLowerCase().includes(lowerTerm))
+        )
+    }, [products, deferredTerm])
 
     return (
         <div className="space-y-6">
@@ -113,17 +119,12 @@ export function ProductosPage() {
             )}
             </div>
 
-            {error && (
-                <div className="p-4 bg-destructive/10 text-destructive rounded-xl flex items-center gap-3">
-                    <AlertCircle size={20} />
-                    {error}
-                </div>
-            )}
+            {error && <ErrorState message={error} onRetry={reload} />}
 
             {loading ? (
                 <ProductListSkeleton />
             ) : filteredProducts.length === 0 ? (
-                <EmptyState icon={Package} message="No se encontraron productos">
+                !error && <EmptyState icon={Package} message="No se encontraron productos">
                     {searchTerm ? (
                         <button
                             onClick={() => setSearchTerm('')}
@@ -141,6 +142,7 @@ export function ProductosPage() {
                     )}
                 </EmptyState>
             ) : (
+                <Refreshable refreshing={refreshing}>
                 <div className="space-y-4">
                     {filteredProducts.map((product) => (
                         <ProductCard
@@ -159,6 +161,7 @@ export function ProductosPage() {
                         />
                     ))}
                 </div>
+                </Refreshable>
             )}
 
             {productModal && (
@@ -212,21 +215,20 @@ export function ProductosPage() {
 
 function ProductListSkeleton() {
     return (
-        <div className="space-y-4">
-            <div className="bg-card rounded-2xl border border-border overflow-hidden">
-                {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="p-4 flex items-center justify-between border-b border-border last:border-0">
-                        <div className="flex items-center gap-4">
-                            <Skeleton className="w-12 h-12 rounded-xl" />
-                            <div className="space-y-2">
-                                <Skeleton className="h-5 w-48" />
-                                <Skeleton className="h-4 w-32" />
-                            </div>
+        // One card per product, like ProductCard, so nothing jumps when the list arrives.
+        <div className="space-y-4" aria-hidden="true">
+            {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="bg-card rounded-2xl border border-border p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <Skeleton className="w-12 h-12 rounded-xl" />
+                        <div className="space-y-2">
+                            <Skeleton className="h-5 w-48" />
+                            <Skeleton className="h-4 w-32" />
                         </div>
-                        <Skeleton className="h-8 w-8 rounded-full" />
                     </div>
-                ))}
-            </div>
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                </div>
+            ))}
         </div>
     )
 }

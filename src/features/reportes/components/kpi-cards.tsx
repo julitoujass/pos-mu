@@ -27,7 +27,7 @@ function KpiCard({ label, value, icon, accent, negative }: KpiCardProps) {
                 <span className="text-sm font-medium text-muted-foreground">{label}</span>
                 <div className="p-2 bg-card rounded-lg shadow-sm border border-border">{icon}</div>
             </div>
-            <div className={`text-3xl font-black tracking-tight ${negative ? 'text-red-500' : 'text-foreground'}`}>
+            <div className={`text-3xl font-black tracking-tight tabular-nums ${negative ? 'text-red-500' : 'text-foreground'}`}>
                 {value}
             </div>
         </div>

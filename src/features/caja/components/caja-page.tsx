@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { CalendarDays, Lock, Unlock } from 'lucide-react'
+import { ErrorState } from '@/components/ui/error-state'
+import { Refreshable } from '@/components/ui/refreshable'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCurrentUser } from '@/features/auth'
 import { useCashSession } from '../hooks/use-cash-session'
@@ -14,12 +16,15 @@ import { ShiftSalesSummary } from './shift-sales-summary'
 
 export function CajaPage() {
     const { isAdmin } = useCurrentUser()
-    const { cashStatus, movements, summary, loading, refresh } = useCashSession()
+    const { cashStatus, movements, summary, loading, refreshing, error, refresh } = useCashSession()
     const [showSessionsModal, setShowSessionsModal] = useState(false)
 
-    if (loading && !cashStatus) {
+    if (loading) {
         return <CajaSkeleton />
     }
+
+    // Nothing could be loaded: the register state is unknown, so no form is offered.
+    const loadFailed = !!error && !cashStatus
 
     return (
         <div className="space-y-6">
@@ -53,15 +58,26 @@ export function CajaPage() {
                 </div>
             </div>
 
-            {!cashStatus || cashStatus.estado === 'cerrada' ? (
-                <OpenRegisterForm onSuccess={refresh} />
+            {error && <ErrorState message={error} onRetry={refresh} />}
+
+            {loadFailed ? null : !cashStatus || cashStatus.estado === 'cerrada' ? (
+                // The forms stay disabled while the new register state loads, so they cannot be sent twice.
+                <Refreshable refreshing={refreshing} dim={false}>
+                    <fieldset disabled={refreshing} className="min-w-0">
+                        <OpenRegisterForm onSuccess={refresh} />
+                    </fieldset>
+                </Refreshable>
             ) : (
-                <div className="space-y-6">
-                    <CashSummaryCards status={cashStatus} summary={summary} onSuccess={refresh} />
-                    <ShiftSalesSummary summary={summary} />
-                    <MovementsTable movements={movements} />
-                    <CloseRegisterForm summary={summary} onSuccess={refresh} />
-                </div>
+                <Refreshable refreshing={refreshing} dim={false} className="animate-fade-in">
+                    <div className="space-y-6">
+                        <CashSummaryCards status={cashStatus} summary={summary} onSuccess={refresh} />
+                        <ShiftSalesSummary summary={summary} />
+                        <MovementsTable movements={movements} />
+                        <fieldset disabled={refreshing} className="min-w-0">
+                            <CloseRegisterForm summary={summary} onSuccess={refresh} />
+                        </fieldset>
+                    </div>
+                </Refreshable>
             )}
 
             {isAdmin && showSessionsModal && (

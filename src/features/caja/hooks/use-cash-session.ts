@@ -1,52 +1,45 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
-import { getErrorMessage } from '@/lib/errors'
+import { useAsyncData } from '@/lib/use-async-data'
 import { fetchCashMovements, fetchCashStatus, fetchCashSummary } from '../api'
 import type { CashMovement, CashStatusResponse, CashSummary } from '../types'
 
+type CashSession = {
+    cashStatus: CashStatusResponse | null
+    movements: CashMovement[]
+    summary: CashSummary | null
+}
+
+const NO_MOVEMENTS: CashMovement[] = []
+
+async function loadCashSession(): Promise<CashSession> {
+    const cashStatus = await fetchCashStatus()
+    if (cashStatus?.estado !== 'abierta') {
+        return { cashStatus, movements: [], summary: null }
+    }
+    const [movements, summary] = await Promise.all([fetchCashMovements(), fetchCashSummary()])
+    return { cashStatus, movements, summary }
+}
+
 /**
  * Loads the current cash session. Movements and the backend summary are only
- * requested while the register is open. Call `refresh()` after any mutation.
+ * requested while the register is open. Call `refresh()` after any mutation:
+ * the current figures stay on screen while they reload (`refreshing`).
  */
 export function useCashSession() {
-    const [cashStatus, setCashStatus] = useState<CashStatusResponse | null>(null)
-    const [movements, setMovements] = useState<CashMovement[]>([])
-    const [summary, setSummary] = useState<CashSummary | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [refreshTrigger, setRefreshTrigger] = useState(0)
+    const { data, loading, refreshing, error, reload } = useAsyncData(
+        'cash-session',
+        loadCashSession,
+        'Error al cargar los datos de caja',
+    )
 
-    useEffect(() => {
-        async function loadData() {
-            try {
-                setLoading(true)
-                const status = await fetchCashStatus()
-                setCashStatus(status)
-
-                if (status?.estado === 'abierta') {
-                    const [movs, summaryData] = await Promise.all([
-                        fetchCashMovements(),
-                        fetchCashSummary()
-                    ])
-                    setMovements(movs)
-                    setSummary(summaryData)
-                } else {
-                    setMovements([])
-                    setSummary(null)
-                }
-            } catch (err: unknown) {
-                toast.error(getErrorMessage(err, 'Error al cargar los datos de caja'))
-            } finally {
-                setLoading(false)
-            }
-        }
-        loadData()
-    }, [refreshTrigger])
-
-    function refresh() {
-        setRefreshTrigger(p => p + 1)
+    return {
+        cashStatus: data?.cashStatus ?? null,
+        movements: data?.movements ?? NO_MOVEMENTS,
+        summary: data?.summary ?? null,
+        loading,
+        refreshing,
+        error,
+        refresh: reload,
     }
-
-    return { cashStatus, movements, summary, loading, refresh }
 }

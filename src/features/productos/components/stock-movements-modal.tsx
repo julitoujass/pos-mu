@@ -21,7 +21,8 @@ type StockMovementsModalProps = {
 /** Admin-only kardex: every stock movement of a variant, newest first. */
 export function StockMovementsModal({ variant, onClose }: StockMovementsModalProps) {
     const titleId = useId()
-    const { movements, loading, error, page, setPage, pageCount, total } = useVariantMovements(variant.id)
+    const { movements, loading, refreshing, error, page, setPage, pageCount, total } = useVariantMovements(variant.id)
+    const busy = loading || refreshing
 
     return (
         <Modal
@@ -59,7 +60,7 @@ export function StockMovementsModal({ variant, onClose }: StockMovementsModalPro
                         <p className="text-muted-foreground">Esta variante todavía no tiene movimientos de stock.</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto border border-border rounded-xl">
+                    <div className={`overflow-x-auto border border-border rounded-xl transition-opacity duration-200 ${refreshing ? 'opacity-60' : ''}`} aria-busy={refreshing}>
                         <table className="w-full text-sm text-left">
                             <thead className="bg-muted text-muted-foreground text-xs uppercase tracking-wider">
                                 <tr>
@@ -113,7 +114,7 @@ export function StockMovementsModal({ variant, onClose }: StockMovementsModalPro
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setPage(page - 1)}
-                            disabled={page === 0 || loading}
+                            disabled={page === 0 || busy}
                             aria-label="Página anterior"
                             className="p-2 rounded-lg border border-input bg-card hover:bg-muted disabled:opacity-50 transition-colors"
                         >
@@ -122,7 +123,7 @@ export function StockMovementsModal({ variant, onClose }: StockMovementsModalPro
                         <span>Página {page + 1} de {pageCount}</span>
                         <button
                             onClick={() => setPage(page + 1)}
-                            disabled={page + 1 >= pageCount || loading}
+                            disabled={page + 1 >= pageCount || busy}
                             aria-label="Página siguiente"
                             className="p-2 rounded-lg border border-input bg-card hover:bg-muted disabled:opacity-50 transition-colors"
                         >

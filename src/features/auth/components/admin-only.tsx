@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { ShieldAlert } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
+import { PageSkeleton } from '@/components/ui/page-skeleton'
 import { useCurrentUser } from '../current-user'
 
 /**
@@ -13,12 +13,8 @@ export function AdminOnly({ children }: { children: React.ReactNode }) {
     const { isAdmin, loading } = useCurrentUser()
 
     if (loading) {
-        return (
-            <div className="space-y-6">
-                <Skeleton className="h-10 w-48" />
-                <Skeleton className="h-64 w-full rounded-2xl" />
-            </div>
-        )
+        // Same shell as the route-level loading.tsx, so there is no jump between the two.
+        return <PageSkeleton />
     }
 
     if (!isAdmin) {

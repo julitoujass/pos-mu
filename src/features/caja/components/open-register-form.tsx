@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertCircle, DollarSign, Loader2, Unlock } from 'lucide-react'
+import { AlertCircle, DollarSign, Unlock } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { getErrorMessage } from '@/lib/errors'
 import { parseMoneyInput } from '@/lib/money'
 import { openRegister } from '../api'
@@ -62,13 +63,15 @@ export function OpenRegisterForm({ onSuccess }: { onSuccess: () => void }) {
                     </div>
                 )}
 
-                <button
+                <Button
                     type="submit"
-                    disabled={loading || !amount}
-                    className="w-full py-3 rounded-xl bg-brand text-white font-bold hover:bg-brand-hover transition-colors shadow-lg shadow-brand/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                    loading={loading}
+                    loadingLabel="Abriendo caja..."
+                    disabled={!amount}
+                    className="w-full py-3 font-bold shadow-lg shadow-brand/20"
                 >
-                    {loading ? <Loader2 className="animate-spin" /> : 'Abrir Caja'}
-                </button>
+                    Abrir Caja
+                </Button>
             </form>
         </div>
     )

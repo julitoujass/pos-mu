@@ -28,7 +28,7 @@ export function CartTable({ cart, totalItems, onQuantityChange, onRemove, onClea
                         {cart.length === 0 ? (
                             <tr>
                                 <td colSpan={5} className="p-12 text-center text-muted-foreground">
-                                    <div className="flex flex-col items-center gap-3">
+                                    <div className="flex flex-col items-center gap-3 animate-fade-in">
                                         <ShoppingCart size={48} className="opacity-20" />
                                         <p className="text-lg">El carrito está vacío</p>
                                         <p className="text-sm opacity-60">Escanea un producto para comenzar</p>
@@ -37,7 +37,8 @@ export function CartTable({ cart, totalItems, onQuantityChange, onRemove, onClea
                             </tr>
                         ) : (
                             cart.map((item) => (
-                                <tr key={item.variantId} className="hover:bg-muted/30 transition-colors group">
+                                // New lines fade in; quantity changes re-render in place (no animation, no delay).
+                                <tr key={item.variantId} className="hover:bg-muted/30 transition-colors group animate-fade-in">
                                     <td className="p-4">
                                         <div className="font-bold text-foreground">{item.name}</div>
                                         <div className="text-xs text-muted-foreground flex gap-2 font-mono mt-1">
@@ -63,16 +64,17 @@ export function CartTable({ cart, totalItems, onQuantityChange, onRemove, onClea
                                             </button>
                                         </div>
                                     </td>
-                                    <td className="p-4 text-right text-muted-foreground">
+                                    <td className="p-4 text-right text-muted-foreground tabular-nums">
                                         {formatMoney(item.price)}
                                     </td>
-                                    <td className="p-4 text-right font-bold text-foreground">
+                                    <td className="p-4 text-right font-bold text-foreground tabular-nums">
                                         {formatMoney(item.price * item.quantity)}
                                     </td>
                                     <td className="p-4 text-right">
                                         <button
                                             onClick={() => onRemove(item.variantId)}
-                                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                            aria-label={`Quitar ${item.name} del carrito`}
                                         >
                                             <Trash2 size={18} />
                                         </button>

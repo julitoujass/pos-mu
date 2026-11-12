@@ -62,7 +62,7 @@ export function CatalogosPage() {
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-8">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Catálogos</h1>
@@ -97,9 +97,16 @@ export function CatalogosPage() {
 
             <div className="bg-card rounded-3xl border border-border overflow-hidden shadow-sm">
                 {loading ? (
-                    <div className="p-6 space-y-4">
-                        {[1, 2, 3].map(i => (
-                            <Skeleton key={i} className="h-16 w-full rounded-2xl" />
+                    // Same row rhythm as CatalogList, so the card does not jump when data arrives.
+                    <div className="divide-y divide-border" aria-hidden="true">
+                        {[1, 2, 3, 4].map(i => (
+                            <div key={i} className="p-5 flex items-center justify-between">
+                                <div className="space-y-2">
+                                    <Skeleton className="h-6 w-44" />
+                                    <Skeleton className="h-4 w-64 max-w-full" />
+                                </div>
+                                <Skeleton className="h-8 w-20 rounded-lg" />
+                            </div>
                         ))}
                     </div>
                 ) : activeTab === 'marcas' ? (

@@ -1,4 +1,5 @@
-import { AlertCircle, Banknote, CheckCircle2, CreditCard, Loader2, QrCode, User, UserPlus, X } from 'lucide-react'
+import { AlertCircle, Banknote, CheckCircle2, CreditCard, QrCode, User, UserPlus, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import type { Client } from '@/features/clientes'
 import { formatMoney } from '@/lib/money'
 import type { SaleTotals } from '../pricing'
@@ -48,7 +49,7 @@ export function CheckoutPanel({
                     <label className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Cliente</label>
 
                     {hasClient ? (
-                        <div className="bg-brand/10 border border-brand/20 p-3 rounded-xl flex justify-between items-center animate-in fade-in zoom-in-95 duration-200">
+                        <div className="bg-brand/10 border border-brand/20 p-3 rounded-xl flex justify-between items-center animate-scale-in">
                             <div className="overflow-hidden">
                                 <p className="font-bold text-foreground text-sm truncate">
                                     {client?.nombre}
@@ -135,25 +136,21 @@ export function CheckoutPanel({
 
                 <div className="flex justify-between items-end">
                     <span className="text-muted-foreground font-medium">Total a Pagar</span>
-                    <span className="text-4xl font-black text-foreground tracking-tight">
+                    <span className="text-4xl font-black text-foreground tracking-tight tabular-nums">
                         {formatMoney(totals.total)}
                     </span>
                 </div>
 
-                <button
+                <Button
                     onClick={onCheckout}
-                    disabled={processing || !canCheckout}
-                    className="w-full py-4 rounded-xl bg-brand text-white font-bold text-lg hover:bg-brand-hover shadow-lg shadow-brand/25 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                    loading={processing}
+                    loadingLabel="Procesando venta..."
+                    disabled={!canCheckout}
+                    icon={<CheckCircle2 size={24} />}
+                    className="w-full py-4 font-bold text-lg shadow-lg shadow-brand/25 disabled:shadow-none"
                 >
-                    {processing ? (
-                        <Loader2 className="animate-spin" />
-                    ) : (
-                        <>
-                            <CheckCircle2 size={24} />
-                            Confirmar Venta
-                        </>
-                    )}
-                </button>
+                    Confirmar Venta
+                </Button>
             </div>
 
             {error && (
@@ -164,7 +161,7 @@ export function CheckoutPanel({
             )}
 
             {successMsg && (
-                <div className="p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-xl text-sm flex items-center gap-2 animate-in slide-in-from-bottom-2">
+                <div className="p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-xl text-sm flex items-center gap-2 animate-slide-up">
                     <CheckCircle2 size={16} />
                     {successMsg}
                 </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ErrorState } from '@/components/ui/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNewSale } from '../hooks/use-new-sale'
 import { CartTable } from './cart-table'
@@ -15,6 +16,11 @@ export function NewSalePage() {
 
     if (sale.loadingData) {
         return <NewSaleSkeleton />
+    }
+
+    // Without the catalog nothing can be scanned, so offer a retry instead of a dead screen.
+    if (sale.loadError) {
+        return <ErrorState message={sale.loadError} onRetry={sale.retryLoad} />
     }
 
     return (
@@ -67,9 +73,10 @@ export function NewSalePage() {
     )
 }
 
-function NewSaleSkeleton() {
+/** Two-column placeholder of the POS screen; also used by the route-level loading.tsx. */
+export function NewSaleSkeleton() {
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-100px)]">
+        <div aria-hidden="true" className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-100px)]">
             <div className="lg:col-span-2 flex flex-col gap-4 h-full">
                 <div className="bg-card p-4 rounded-2xl border border-border shadow-sm">
                     <div className="flex justify-between items-center">

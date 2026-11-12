@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertCircle, Plus, Search, Users } from 'lucide-react'
+import { Loader2, Plus, Search, Users } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
+import { ErrorState } from '@/components/ui/error-state'
+import { Refreshable } from '@/components/ui/refreshable'
+import { useDebouncedValue } from '@/lib/use-debounced-value'
 import { useClients } from '../hooks/use-clients'
 import type { Client } from '../types'
 import { ClientModal } from './client-modal'
@@ -11,14 +14,13 @@ import { ClientsTable, ClientsTableSkeleton } from './clients-table'
 type ClientModalState = { mode: 'create' } | { mode: 'edit'; client: Client }
 
 export function ClientesPage() {
-    const { clients, loading, error, load } = useClients()
     const [searchTerm, setSearchTerm] = useState('')
+    // Server-side search: runs once the user stops typing.
+    const debouncedTerm = useDebouncedValue(searchTerm)
+    const { clients, loading, refreshing, error, reload } = useClients(debouncedTerm)
     const [modal, setModal] = useState<ClientModalState | null>(null)
 
-    function handleSearch(e: React.FormEvent) {
-        e.preventDefault()
-        load(searchTerm)
-    }
+    const searching = refreshing || searchTerm !== debouncedTerm
 
     return (
         <div className="space-y-6">
@@ -36,40 +38,42 @@ export function ClientesPage() {
                 </button>
             </div>
 
-            {/* Server-side search: submitted on Enter */}
-            <form onSubmit={handleSearch} className="relative">
+            <form onSubmit={e => e.preventDefault()} role="search" className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                 <input
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Buscar por nombre, DNI, o email..."
-                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-input bg-card text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
+                    aria-label="Buscar clientes"
+                    className="w-full pl-12 pr-12 py-3 rounded-xl border border-input bg-card text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                 />
+                {searching && !loading && (
+                    <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 animate-spin text-muted-foreground" aria-hidden="true" />
+                )}
             </form>
 
-            {error && (
-                <div className="p-4 bg-destructive/10 text-destructive rounded-xl flex items-center gap-3">
-                    <AlertCircle size={20} />
-                    {error}
-                </div>
-            )}
+            {error && <ErrorState message={error} onRetry={reload} />}
 
             {loading ? (
                 <ClientsTableSkeleton />
             ) : clients.length === 0 ? (
-                <EmptyState icon={Users} message="No se encontraron clientes">
-                    {searchTerm && (
-                        <button
-                            onClick={() => { setSearchTerm(''); load(); }}
-                            className="mt-2 text-brand hover:underline"
-                        >
-                            Limpiar búsqueda
-                        </button>
-                    )}
-                </EmptyState>
+                !error && (
+                    <EmptyState icon={Users} message="No se encontraron clientes">
+                        {searchTerm && (
+                            <button
+                                onClick={() => setSearchTerm('')}
+                                className="mt-2 text-brand hover:underline"
+                            >
+                                Limpiar búsqueda
+                            </button>
+                        )}
+                    </EmptyState>
+                )
             ) : (
-                <ClientsTable clients={clients} onEdit={(client) => setModal({ mode: 'edit', client })} />
+                <Refreshable refreshing={refreshing}>
+                    <ClientsTable clients={clients} onEdit={(client) => setModal({ mode: 'edit', client })} />
+                </Refreshable>
             )}
 
             {modal && (
@@ -77,7 +81,7 @@ export function ClientesPage() {
                     mode={modal.mode}
                     initialData={modal.mode === 'edit' ? modal.client : null}
                     onClose={() => setModal(null)}
-                    onSuccess={() => { setModal(null); load(searchTerm); }}
+                    onSuccess={() => { setModal(null); reload(); }}
                 />
             )}
         </div>

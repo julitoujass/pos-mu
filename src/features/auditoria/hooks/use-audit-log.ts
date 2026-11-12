@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { getErrorMessage } from '@/lib/errors'
+import { useCallback, useState } from 'react'
+import { useAsyncData } from '@/lib/use-async-data'
+import { useDebouncedValue } from '@/lib/use-debounced-value'
 import { fetchAuditLog } from '../api'
 import type { AuditEntry } from '../types'
 
@@ -15,47 +16,38 @@ export type AuditFormFilters = {
 }
 
 const EMPTY_FILTERS: AuditFormFilters = { desde: '', hasta: '', evento: '', entidad: '' }
+const NO_ENTRIES: AuditEntry[] = []
 
-/** Filtered, paginated audit log. Changing a filter goes back to the first page. */
+/**
+ * Filtered, paginated audit log. Changing a filter goes back to the first page.
+ * The free-text filters are debounced so typing does not fire a request per key,
+ * and the previous page stays visible while the next one loads (`refreshing`).
+ */
 export function useAuditLog() {
     const [filters, setFiltersState] = useState<AuditFormFilters>(EMPTY_FILTERS)
     const [page, setPage] = useState(0)
-    const [entries, setEntries] = useState<AuditEntry[]>([])
-    const [total, setTotal] = useState(0)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    const evento = useDebouncedValue(filters.evento.trim())
+    const entidad = useDebouncedValue(filters.entidad.trim())
 
-    useEffect(() => {
-        let cancelled = false
-        async function load() {
-            setLoading(true)
-            setError(null)
-            try {
-                const data = await fetchAuditLog({
-                    desde: filters.desde || undefined,
-                    hasta: filters.hasta || undefined,
-                    evento: filters.evento.trim() || undefined,
-                    entidad: filters.entidad.trim() || undefined,
-                    limit: AUDIT_PAGE_SIZE,
-                    offset: page * AUDIT_PAGE_SIZE,
-                })
-                if (cancelled) return
-                setEntries(data.items)
-                setTotal(data.total)
-            } catch (err: unknown) {
-                if (!cancelled) setError(getErrorMessage(err, 'Error al cargar la auditoría'))
-            } finally {
-                if (!cancelled) setLoading(false)
-            }
-        }
-        load()
-        return () => { cancelled = true }
-    }, [filters, page])
+    const { data, loading, refreshing, error, reload } = useAsyncData(
+        JSON.stringify([filters.desde, filters.hasta, evento, entidad, page]),
+        () => fetchAuditLog({
+            desde: filters.desde || undefined,
+            hasta: filters.hasta || undefined,
+            evento: evento || undefined,
+            entidad: entidad || undefined,
+            limit: AUDIT_PAGE_SIZE,
+            offset: page * AUDIT_PAGE_SIZE,
+        }),
+        'Error al cargar la auditoría',
+    )
 
     const setFilters = useCallback((next: AuditFormFilters) => {
         setFiltersState(next)
         setPage(0)
     }, [])
+
+    const total = data?.total ?? 0
 
     return {
         filters,
@@ -63,9 +55,11 @@ export function useAuditLog() {
         page,
         setPage,
         pageCount: Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE)),
-        entries,
+        entries: data?.items ?? NO_ENTRIES,
         total,
         loading,
+        refreshing,
         error,
+        reload,
     }
 }

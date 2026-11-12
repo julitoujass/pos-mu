@@ -31,6 +31,8 @@ export function useNewSale() {
 
     // UI
     const [loadingData, setLoadingData] = useState(true)
+    const [loadError, setLoadError] = useState<string | null>(null)
+    const [loadAttempt, setLoadAttempt] = useState(0)
     const [processing, setProcessing] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -57,26 +59,34 @@ export function useNewSale() {
     }, [cart, paymentMethod, selectedClient, discountType, discountInput, surchargeType, surchargeInput])
 
     useEffect(() => {
+        let cancelled = false
         async function loadInitialData() {
             try {
                 setLoadingData(true)
+                setLoadError(null)
                 const [productsData, clientsData] = await Promise.all([
                     fetchProducts(),
                     fetchClients()
                 ])
+                if (cancelled) return
 
                 setClients(clientsData)
                 setSearchableVariants(flattenVariants(productsData))
 
                 setTimeout(() => skuInputRef.current?.focus(), 100)
             } catch (err: unknown) {
-                setError(getErrorMessage(err, 'Error cargando datos'))
+                if (!cancelled) setLoadError(getErrorMessage(err, 'Error cargando datos'))
             } finally {
-                setLoadingData(false)
+                if (!cancelled) setLoadingData(false)
             }
         }
         loadInitialData()
-    }, [])
+        return () => { cancelled = true }
+    }, [loadAttempt])
+
+    function retryLoad() {
+        setLoadAttempt(n => n + 1)
+    }
 
     /** Applies a cart operation, surfacing its rejection (e.g. no stock) as a toast. */
     function applyToCart(operation: (cart: CartItem[]) => CartResult) {
@@ -175,20 +185,24 @@ export function useNewSale() {
         setDiscountInput('')
         setSurchargeInput('')
 
+        // The counter is ready for the next customer right away: the stock shown on
+        // screen refreshes in the background (the server validates stock anyway).
+        setProcessing(false)
+        setTimeout(() => setSuccessMsg(null), 3000)
+        skuInputRef.current?.focus()
+
         try {
             await reloadVariants()
         } catch {
             toast.warning('Venta registrada, pero no se pudo actualizar el stock en pantalla')
         }
-
-        setTimeout(() => setSuccessMsg(null), 3000)
-        skuInputRef.current?.focus()
-        setProcessing(false)
     }
 
     return {
         clients,
         loadingData,
+        loadError,
+        retryLoad,
         processing,
         error,
         successMsg,

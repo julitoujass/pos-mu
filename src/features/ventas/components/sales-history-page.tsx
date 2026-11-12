@@ -1,9 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertCircle, ChevronLeft, ChevronRight, Receipt } from 'lucide-react'
+import { Receipt } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Skeleton } from '@/components/ui/skeleton'
+import { ErrorState } from '@/components/ui/error-state'
+import { Pagination } from '@/components/ui/pagination'
+import { Refreshable } from '@/components/ui/refreshable'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import { HISTORY_PAGE_SIZE, useSalesHistory } from '../hooks/use-sales-history'
 import { ExportSalesButton } from './export-sales-button'
 import { SaleDetailModal } from './sale-detail-modal'
@@ -30,47 +33,31 @@ export function SalesHistoryPage() {
 
             <SalesHistoryFilters filters={history.filters} onChange={history.setFilters} />
 
-            {history.error && (
-                <div className="p-4 bg-destructive/10 text-destructive rounded-xl flex items-center gap-3">
-                    <AlertCircle size={20} />
-                    {history.error}
-                </div>
-            )}
+            {history.error && <ErrorState message={history.error} onRetry={history.reload} />}
 
             {history.loading ? (
-                <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
-                    {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-10 w-full" />)}
-                </div>
+                <TableSkeleton columns={7} />
             ) : history.sales.length === 0 ? (
-                <EmptyState icon={Receipt} message="No hay ventas para los filtros seleccionados" />
+                !history.error && (
+                    <Refreshable refreshing={history.refreshing}>
+                        <EmptyState icon={Receipt} message="No hay ventas para los filtros seleccionados" />
+                    </Refreshable>
+                )
             ) : (
                 <>
-                    <SalesHistoryTable
-                        sales={history.sales}
-                        onViewDetail={sale => setSelectedSaleId(sale.id)}
+                    <Refreshable refreshing={history.refreshing}>
+                        <SalesHistoryTable
+                            sales={history.sales}
+                            onViewDetail={sale => setSelectedSaleId(sale.id)}
+                        />
+                    </Refreshable>
+                    <Pagination
+                        page={history.page}
+                        pageCount={history.pageCount}
+                        onPageChange={history.setPage}
+                        summary={`${from}-${to} de ${history.total}`}
+                        disabled={history.refreshing}
                     />
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>{from}-{to} de {history.total}</span>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => history.setPage(history.page - 1)}
-                                disabled={history.page === 0}
-                                aria-label="Página anterior"
-                                className="p-2 rounded-lg border border-input bg-card hover:bg-muted disabled:opacity-50 transition-colors"
-                            >
-                                <ChevronLeft size={16} />
-                            </button>
-                            <span>Página {history.page + 1} de {history.pageCount}</span>
-                            <button
-                                onClick={() => history.setPage(history.page + 1)}
-                                disabled={history.page + 1 >= history.pageCount}
-                                aria-label="Página siguiente"
-                                className="p-2 rounded-lg border border-input bg-card hover:bg-muted disabled:opacity-50 transition-colors"
-                            >
-                                <ChevronRight size={16} />
-                            </button>
-                        </div>
-                    </div>
                 </>
             )}
 

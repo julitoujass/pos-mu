@@ -1,31 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { getErrorMessage } from '@/lib/errors'
+import { useCallback } from 'react'
+import { useAsyncData } from '@/lib/use-async-data'
 import { fetchSettings } from '../api'
 import type { BusinessSettings } from '../types'
 
 /** Loads the business settings once. Available to every role. */
 export function useBusinessSettings() {
-    const [settings, setSettings] = useState<BusinessSettings | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState<string | null>(null)
+    const { data, loading, error, reload, setData } = useAsyncData(
+        'business-settings',
+        fetchSettings,
+        'Error al cargar la configuración',
+    )
 
-    useEffect(() => {
-        let cancelled = false
-        async function load() {
-            try {
-                const data = await fetchSettings()
-                if (!cancelled) setSettings(data)
-            } catch (err: unknown) {
-                if (!cancelled) setError(getErrorMessage(err, 'Error al cargar la configuración'))
-            } finally {
-                if (!cancelled) setLoading(false)
-            }
-        }
-        load()
-        return () => { cancelled = true }
-    }, [])
+    /** Swaps in the copy returned by the backend after saving. */
+    const setSettings = useCallback((next: BusinessSettings) => setData(() => next), [setData])
 
-    return { settings, setSettings, loading, error }
+    return { settings: data ?? null, setSettings, loading, error, reload }
 }

@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertCircle, BarChart2, RefreshCw } from 'lucide-react'
+import { BarChart2, RefreshCw } from 'lucide-react'
+import { ErrorState } from '@/components/ui/error-state'
+import { Refreshable } from '@/components/ui/refreshable'
 import { AdminOnly } from '@/features/auth'
 import { DEFAULT_PRESET, PRESETS } from '../date-presets'
 import { useReportes } from '../hooks/use-reportes'
@@ -27,7 +29,8 @@ function ReportesContent() {
     const [fechaFin, setFechaFin] = useState(PRESETS[DEFAULT_PRESET].end)
     const [customRange, setCustomRange] = useState(false)
 
-    const { ventas, topProductos, cajas, loading, error, reload } = useReportes(fechaInicio, fechaFin)
+    const { ventas, topProductos, cajas, loading, refreshing, error, reload } = useReportes(fechaInicio, fechaFin)
+    const busy = loading || refreshing
 
     function selectPreset(idx: number) {
         setPreset(idx)
@@ -48,10 +51,10 @@ function ReportesContent() {
                 </div>
                 <button
                     onClick={reload}
-                    disabled={loading}
+                    disabled={busy}
                     className="flex items-center gap-2 px-4 py-2 bg-muted text-foreground rounded-xl text-sm font-medium hover:bg-muted/80 transition-colors disabled:opacity-50 self-start sm:self-auto"
                 >
-                    <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                    <RefreshCw size={16} className={busy ? 'animate-spin' : ''} />
                     Actualizar
                 </button>
             </div>
@@ -67,15 +70,11 @@ function ReportesContent() {
                 onFechaFinChange={setFechaFin}
             />
 
-            {error && (
-                <div className="p-4 bg-destructive/10 border border-destructive/20 text-destructive rounded-xl flex items-center gap-3">
-                    <AlertCircle size={20} />
-                    <span>{error}</span>
-                </div>
-            )}
+            {error && <ErrorState message={error} onRetry={reload} />}
 
-            {loading ? <ReportesSkeleton /> : (
-                <>
+            {loading ? <ReportesSkeleton /> : !ventas && error ? null : (
+                <Refreshable refreshing={refreshing}>
+                    <div className="space-y-8">
                     <KpiCards ventas={ventas} cajas={cajas} />
                     <ExportButtons
                         ventas={ventas}
@@ -89,7 +88,8 @@ function ReportesContent() {
                         <TopProducts productos={topProductos} />
                         <CashReportTable cajas={cajas} />
                     </div>
-                </>
+                    </div>
+                </Refreshable>
             )}
         </div>
     )
