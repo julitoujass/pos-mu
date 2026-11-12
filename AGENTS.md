@@ -64,7 +64,8 @@ src/
 │   ├── globals.css                # Design tokens + TailwindCSS
 │   ├── api/python/[...path]/      # Proxy catch-all hacia FastAPI (route.ts + route.test.ts)
 │   └── dashboard/
-│       ├── layout.tsx             # Sidebar + navegación + <CurrentUserProvider> (client)
+│       ├── layout.tsx             # Sidebar + navegación + <CurrentUserProvider> + <RouteProgress> (client)
+│       ├── loading.tsx            # Skeleton instantáneo de ruta (<PageSkeleton>); venta/loading.tsx usa <NewSaleSkeleton>
 │       ├── page.tsx               # → <DashboardHome />   (features/dashboard)
 │       ├── venta/page.tsx         # → <NewSalePage />     (features/ventas)
 │       ├── historial/page.tsx     # → <SalesHistoryPage /> (features/ventas)
@@ -116,8 +117,17 @@ src/
 │       ├── delete-confirm-dialog.tsx # <DeleteConfirmDialog>: "Confirmar eliminación" estándar
 │       ├── empty-state.tsx        # <EmptyState>: tarjeta de lista vacía
 │       ├── form-error.tsx         # <FormError>: banner de error de formulario
-│       └── skeleton.tsx           # <Skeleton>
+│       ├── skeleton.tsx           # <Skeleton>
+│       ├── table-skeleton.tsx     # <TableSkeleton columns rows>: placeholder de tablas
+│       ├── page-skeleton.tsx      # <PageSkeleton> / <PageHeaderSkeleton>: shell de página (loading.tsx, AdminOnly)
+│       ├── refreshable.tsx        # <Refreshable refreshing>: atenúa el contenido + chip "Actualizando..."
+│       ├── error-state.tsx        # <ErrorState message onRetry>: error de carga con "Reintentar"
+│       ├── button.tsx             # <Button loading loadingLabel icon variant>: botón con estado pendiente
+│       ├── pagination.tsx         # <Pagination>: pie anterior/siguiente de las tablas paginadas
+│       └── route-progress.tsx     # <RouteProgress>: barra superior durante la navegación
 ├── lib/                           # Transversal, sin conocimiento de features
+│   ├── use-async-data.ts          # useAsyncData(key, fetcher, errorFallback): carga con loading/refreshing/error/reload/setData
+│   ├── use-debounced-value.ts     # useDebouncedValue(value, 300): búsquedas y filtros server-side
 │   ├── http.ts                    # API_URL, getAuthHeaders, toApiError, apiFetch/apiJson, toQueryString
 │   ├── errors.ts                  # getErrorMessage, getApiErrorDetail, ApiError (con status), isInactiveUserError
 │   ├── money.ts                   # roundMoney / formatMoney / parseMoneyInput
@@ -220,7 +230,7 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - **Precios del lado del servidor:** el front envía solo `{ variante_id, cantidad }` por ítem, el método de pago y el cliente. Los precios y el total los toma el backend de la DB; el total mostrado en pantalla es una estimación (`roundMoney`/`formatMoney`) y el toast de éxito muestra el `total` real devuelto por el servidor.
 - **Descuento y recargo (opcionales):** en el checkout, cada uno con toggle `%` / `$` y un input parseado con `parseMoneyInput` (`AdjustmentsSection`). Se envían como `descuento` / `recargo` `{ tipo: 'porcentaje'|'monto', valor }` solo si están seteados (porcentaje ≤ 100). Reglas (espejo del backend, `pricing.ts`): `descuento = subtotal*valor/100` o `valor`; el recargo porcentual se aplica sobre `subtotal − descuento`; `total = subtotal − descuento + recargo`, redondeado a 2 decimales. `computeSaleTotals` calcula la estimación y `exceedsEmployeeDiscountLimit(subtotal, descuento, maxPercent)` valida el tope para empleados: ya no es fijo, viene de `descuento_max_empleado` de la configuración (`useBusinessSettings()`, 10% mientras carga). La UI muestra "máx. N%" y bloquea el cobro; el backend sigue siendo la autoridad y responde 403.
 - **Idempotency-Key:** se genera un `crypto.randomUUID()` por intento de cobro y se envía en el header `Idempotency-Key` (`processSale(data, key)`). Se reutiliza si el usuario reintenta tras un error (el backend devuelve la misma venta, sin duplicar) y se reinicia tras una venta exitosa o al cambiar carrito, método de pago, cliente, descuento o recargo.
-- **Proceso de venta:** Al confirmar, llama a `processSale()` y recarga las variantes para actualizar stock local. Si la recarga falla, se muestra el éxito de la venta más un toast de advertencia aparte (nunca como error de venta). Los errores del backend (400 sin caja abierta, 409 stock insuficiente, 404, 422) se muestran con su `detail` en un toast.
+- **Proceso de venta:** Al confirmar, llama a `processSale()`; con la venta registrada libera el botón y devuelve el foco al SKU, y recarga las variantes en segundo plano para actualizar stock local. Si la carga inicial de catálogo/clientes falla, la página muestra `<ErrorState>` con "Reintentar". Si la recarga falla, se muestra el éxito de la venta más un toast de advertencia aparte (nunca como error de venta). Los errores del backend (400 sin caja abierta, 409 stock insuficiente, 404, 422) se muestran con su `detail` en un toast.
 - **Ticket:** tras cobrar, el toast de éxito incluye la acción "Imprimir ticket" (`openTicket(id)` → `window.open('/ticket/<id>', '_blank')`).
 - **Código (`features/ventas`):** `useNewSale` concentra el estado (carga, carrito, cobro e idempotencia); `cart.ts` y `pricing.ts` tienen la lógica pura (testeada); componentes `SkuScanner`, `CartTable`, `CheckoutPanel`, `AdjustmentsSection`, `ClientSelectorModal`.
 
@@ -275,7 +285,7 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 
 ### 6. `/dashboard/clientes` — Gestión de Clientes
 - Tabla con columnas: Cliente (nombre + DNI/CUIT), Contacto (email + teléfono), Ubicación (dirección + ciudad).
-- Búsqueda server-side: el term se pasa como query param al backend (`?query=`).
+- Búsqueda server-side: el term se pasa como query param al backend (`?query=`), con debounce de 300 ms mientras se escribe (`useClients(debouncedTerm)`).
 - **Campos del cliente:** nombre*, dni_cuit, email, telefono, direccion, ciudad, tipo_iva.
 - **Condición IVA (tipo_iva):** Opciones fijas: `Consumidor Final`, `Monotributista`, `Responsable Inscripto`, `Exento`.
 - **Código (`features/clientes`):** `useClients`; componentes `ClientsTable`, `ClientModal`.
@@ -434,7 +444,7 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 1. **Todas las páginas del dashboard son `'use client'`** — no hay Server Components en las páginas de features.
 2. **Feature folders + contenedor/presentacional:** cada módulo vive en `src/features/<feature>/` (ver "Anatomía de una feature"). `app/dashboard/<x>/page.tsx` solo renderiza el contenedor. No definir modales ni sub-componentes dentro de las páginas; apuntar a archivos de menos de ~250 líneas.
 3. **No hay state management global** (sin Zustand/Redux). Todo el estado es local con `useState`.
-4. **Carga y refresh de datos:** en hooks de la feature (`use-*.ts`) que exponen `reload()`/`refresh()`; los contenedores los llaman tras cada mutación.
+4. **Carga y refresh de datos:** en hooks de la feature (`use-*.ts`) construidos sobre `useAsyncData`, que exponen `loading`, `refreshing`, `error` y `reload()`/`refresh()`; los contenedores los llaman tras cada mutación (ver "Carga, refresco y movimiento").
 5. **Dinero:** usar siempre `formatMoney` (muestra `$1.234,50`), `roundMoney` (redondeo a 2 decimales sin drift de float) y `parseMoneyInput` (acepta `1234.5`, `1234,5`, `1.234,50`; `null` si es inválido o negativo) de `@/lib/money`. No usar `toLocaleString` suelto ni `Number(input)` para montos. Única excepción: los reportes usan `formatWholeMoney` (pesos enteros).
 6. **Skeleton loaders:** Usar el componente `<Skeleton>` de `@/components/ui/skeleton` mientras cargan los datos.
 7. **Toasts:** Usar `toast.error()` / `toast.success()` de **Sonner** para feedback al usuario.
@@ -444,6 +454,21 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 11. **Modales:** usar siempre `<Modal onClose labelledBy className>` de `@/components/ui/modal` (nunca un overlay `fixed inset-0` propio). Da `role="dialog"`, `aria-modal`, `aria-labelledby`, cierre con Escape y click en el fondo (salvo `dismissible={false}`), foco dentro del diálogo y devolución del foco al cerrar. El título lleva `id={useId()}` y se pasa en `labelledBy`; `className` define el panel; `backdrop="strong"` oscurece más el fondo. Se abre renderizándolo condicionalmente.
 12. **Confirmaciones:** usar `<ConfirmDialog title message confirmLabel cancelLabel destructive loading icon onConfirm onCancel>` (nunca `window.confirm`). Para borrados, `<DeleteConfirmDialog label loading onConfirm onCancel>`. Con `loading` los botones se deshabilitan y no se puede cerrar.
 13. **UI compartida:** listas vacías con `<EmptyState icon message>` y errores de formulario con `<FormError message>` de `@/components/ui`.
+
+### Carga, refresco y movimiento (rendimiento percibido)
+
+14. **`loading` vs `refreshing`:** los hooks de datos se construyen sobre `useAsyncData(key, fetcher, errorFallback)` (`@/lib/use-async-data`) y exponen ambos estados.
+    - `loading` = primera carga, todavía no hay datos → se muestra un **skeleton**.
+    - `refreshing` = recarga con datos en pantalla (tras una mutación, cambio de filtro, de página o de búsqueda) → **nunca** se vuelve al skeleton ni al estado vacío: se envuelve el contenido en `<Refreshable refreshing>` (atenúa y muestra "Actualizando...").
+    - `key` identifica la consulta (filtros, página, id): al cambiar se vuelve a pedir conservando los datos anteriores; las respuestas viejas se descartan. `reload()` recarga; `setData(updater)` aplica cambios locales tras una mutación.
+    - `<Refreshable dim={false}>` cuando el contenido aloja sus propios modales (p. ej. caja), para no atenuarlos.
+15. **Skeletons con la forma final:** usar `<TableSkeleton columns rows>` para tablas y skeletons propios con la misma grilla/altura que el contenido real (mismo número de tarjetas, mismos paddings) para evitar saltos de layout. Las páginas nuevas del dashboard ya tienen skeleton de ruta por `app/dashboard/loading.tsx`.
+16. **Errores de carga:** `{error && <ErrorState message={error} onRetry={reload} />}`; el estado vacío solo se muestra si no hay error. Los toasts quedan para errores de mutaciones.
+17. **Botones de mutación:** todo botón que llama al backend muestra spinner y queda deshabilitado mientras corre (no se puede enviar dos veces). Usar `<Button loading loadingLabel icon variant>` de `@/components/ui/button` (o el `loading` de `ConfirmDialog` / `DeleteConfirmDialog`). Si tras la mutación se recarga el estado que habilita el formulario, mantenerlo deshabilitado mientras `refreshing` (ver `caja-page.tsx`).
+18. **Búsquedas y filtros:** filtrado client-side con `useDeferredValue` + `useMemo` (productos, selector de clientes); búsquedas y filtros de texto server-side con `useDebouncedValue(valor)` (300 ms) y resultados anteriores visibles mientras llega la respuesta (clientes, auditoría).
+19. **Navegación:** usar `<Link>` (no `router.push`) para navegar entre páginas: se prefetchea y dispara `<RouteProgress>` (barra superior, sin dependencias).
+20. **Animaciones:** solo las utilidades definidas en `globals.css`: `animate-fade-in`, `animate-slide-up`, `animate-scale-in` (≈200 ms, solo al entrar). No hay `tw-animate-css`: clases como `animate-in` / `fade-in` / `zoom-in-95` **no existen**. No animar con `transform` contenedores que alojen modales (`position: fixed`); para esos usar `animate-fade-in`. `prefers-reduced-motion` desactiva animaciones y transiciones globalmente (los spinners siguen girando). Los importes y contadores que cambian llevan `tabular-nums`.
+21. **POS (`/dashboard/venta`):** agregar ítems es síncrono y local (sin spinners); tras cobrar, el carrito se limpia, el foco vuelve al SKU y el botón se libera de inmediato: el stock en pantalla se refresca en segundo plano.
 
 ---
 
