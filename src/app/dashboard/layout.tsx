@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
     LayoutDashboard,
     ShoppingCart,
+    Receipt,
     Package,
     Users,
     Banknote,
@@ -24,6 +25,7 @@ import { CurrentUserProvider, useCurrentUser } from '@/features/auth'
 const sidebarItems = [
     { name: 'Panel Principal', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Nueva Venta', href: '/dashboard/venta', icon: ShoppingCart },
+    { name: 'Historial', href: '/dashboard/historial', icon: Receipt },
     { name: 'Caja', href: '/dashboard/caja', icon: Banknote },
     { name: 'Productos', href: '/dashboard/productos', icon: Package },
     { name: 'Catálogos', href: '/dashboard/catalogos', icon: Tags },
