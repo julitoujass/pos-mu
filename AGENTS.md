@@ -67,6 +67,7 @@ src/
 │       ├── layout.tsx             # Sidebar + navegación + <CurrentUserProvider> (client)
 │       ├── page.tsx               # → <DashboardHome />   (features/dashboard)
 │       ├── venta/page.tsx         # → <NewSalePage />     (features/ventas)
+│       ├── historial/page.tsx     # → <SalesHistoryPage /> (features/ventas)
 │       ├── caja/page.tsx          # → <CajaPage />        (features/caja)
 │       ├── productos/page.tsx     # → <ProductosPage />   (features/productos)
 │       ├── catalogos/page.tsx     # → <CatalogosPage />   (features/catalogos)
@@ -76,8 +77,10 @@ src/
 ├── features/
 │   ├── auth/                      # api.ts (fetchMe), types.ts, current-user.tsx (CurrentUserProvider/useCurrentUser),
 │   │                              # components/{admin-only,login-form}.tsx
-│   ├── ventas/                    # api.ts, types.ts, cart.ts (lógica pura del carrito), hooks/use-new-sale.ts,
-│   │                              # components/{new-sale-page,sku-scanner,cart-table,checkout-panel,client-selector-modal}.tsx
+│   ├── ventas/                    # api.ts, types.ts, cart.ts (carrito), pricing.ts (descuento/recargo), dates.ts,
+│   │                              # hooks/{use-new-sale,use-sales-history,use-sale-detail}.ts,
+│   │                              # components/{new-sale-page,sku-scanner,cart-table,checkout-panel,adjustments-section,client-selector-modal,
+│   │                              #   sales-history-page,sales-history-filters,sales-history-table,sale-detail-modal,cancel-sale-dialog,sale-status-badge}.tsx
 │   ├── caja/                      # api.ts, types.ts, hooks/{use-cash-session,use-sessions-history}.ts,
 │   │                              # components/{caja-page,open-register-form,cash-summary-cards,shift-sales-summary,
 │   │                              #   movements-table,close-register-form,movement-modal,sessions-history-modal,session-list}.tsx
@@ -159,6 +162,10 @@ El backend aplica la matriz de permisos; la UI la refleja para no mostrar accion
 | Crear/editar/borrar marcas y categorías | ❌ | ✅ |
 | Reportes | ❌ | ✅ |
 | Historial de sesiones de caja anteriores (`/caja/sesiones*`) | ❌ | ✅ |
+| Historial de ventas y detalle (costos solo admin) | ✅ | ✅ |
+| Descuento en la venta | hasta 10% del subtotal | sin límite |
+| Anular ventas | ❌ | ✅ |
+| Movimientos de stock (kardex) de una variante | ❌ | ✅ |
 | Gestión de usuarios (rol y activo/inactivo) | ❌ | ✅ |
 
 - El backend valida el token con `supabase.auth.get_user()` y obtiene el rol desde `perfiles → roles` (cache en memoria de 5 min; si falla, el rol por defecto es `empleado`). Ver `admin-mu/app/api/auth_deps.py`.
@@ -197,9 +204,16 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - **Métodos de pago:** Efectivo, Tarjeta, QR (enum fijo, no configurable desde UI).
 - **Cliente:** Selector modal que filtra por nombre, DNI o email. Default es "Consumidor Final" (cliente_id = null).
 - **Precios del lado del servidor:** el front envía solo `{ variante_id, cantidad }` por ítem, el método de pago y el cliente. Los precios y el total los toma el backend de la DB; el total mostrado en pantalla es una estimación (`roundMoney`/`formatMoney`) y el toast de éxito muestra el `total` real devuelto por el servidor.
-- **Idempotency-Key:** se genera un `crypto.randomUUID()` por intento de cobro y se envía en el header `Idempotency-Key` (`processSale(data, key)`). Se reutiliza si el usuario reintenta tras un error (el backend devuelve la misma venta, sin duplicar) y se reinicia tras una venta exitosa o al cambiar carrito, método de pago o cliente.
+- **Descuento y recargo (opcionales):** en el checkout, cada uno con toggle `%` / `$` y un input parseado con `parseMoneyInput` (`AdjustmentsSection`). Se envían como `descuento` / `recargo` `{ tipo: 'porcentaje'|'monto', valor }` solo si están seteados (porcentaje ≤ 100). Reglas (espejo del backend, `pricing.ts`): `descuento = subtotal*valor/100` o `valor`; el recargo porcentual se aplica sobre `subtotal − descuento`; `total = subtotal − descuento + recargo`, redondeado a 2 decimales. `computeSaleTotals` calcula la estimación y `exceedsEmployeeDiscountLimit` valida el tope de 10% para empleados (la UI muestra "máx. 10%" y bloquea el cobro; el backend sigue siendo la autoridad y responde 403 "El descuento máximo permitido para empleados es 10%").
+- **Idempotency-Key:** se genera un `crypto.randomUUID()` por intento de cobro y se envía en el header `Idempotency-Key` (`processSale(data, key)`). Se reutiliza si el usuario reintenta tras un error (el backend devuelve la misma venta, sin duplicar) y se reinicia tras una venta exitosa o al cambiar carrito, método de pago, cliente, descuento o recargo.
 - **Proceso de venta:** Al confirmar, llama a `processSale()` y recarga las variantes para actualizar stock local. Si la recarga falla, se muestra el éxito de la venta más un toast de advertencia aparte (nunca como error de venta). Los errores del backend (400 sin caja abierta, 409 stock insuficiente, 404, 422) se muestran con su `detail` en un toast.
-- **Código (`features/ventas`):** `useNewSale` concentra el estado (carga, carrito, cobro e idempotencia); `cart.ts` tiene la lógica pura del carrito (testeada); componentes `SkuScanner`, `CartTable`, `CheckoutPanel`, `ClientSelectorModal`.
+- **Código (`features/ventas`):** `useNewSale` concentra el estado (carga, carrito, cobro e idempotencia); `cart.ts` y `pricing.ts` tienen la lógica pura (testeada); componentes `SkuScanner`, `CartTable`, `CheckoutPanel`, `AdjustmentsSection`, `ClientSelectorModal`.
+
+### 2b. `/dashboard/historial` — Historial de Ventas
+- Visible en el sidebar para ambos roles ("Historial", junto a "Nueva Venta"). Código en `features/ventas` (`SalesHistoryPage`).
+- **Filtros:** desde / hasta (por defecto el día de hoy en horario de Argentina, `todayInArgentina()` de `dates.ts`), método de pago y estado. Cambiar un filtro vuelve a la página 1.
+- **Tabla paginada** (50 por página, `limit`/`offset`): fecha y hora, cliente, vendedor, método, total y badge de estado ("Anulada"). "Ver detalle" abre `SaleDetailModal` (cabecera, ítems, desglose de descuento/recargo, info de anulación; costos solo admin).
+- **Anular venta (solo admin):** botón en el detalle de ventas completadas → `CancelSaleDialog` (`ConfirmDialog` con textarea de motivo obligatorio, 1..200 caracteres) → `cancelSale(id, motivo)`; al terminar se actualiza el detalle y se recarga la lista. Los errores del backend (409 ya anulada; 400 "Abrí la caja para registrar la devolución en efectivo") se muestran con su `detail`. Anular una venta en efectivo de una sesión cerrada crea automáticamente un egreso en la caja abierta; las ventas anuladas dejan de contar en el resumen de caja y en reportes.
 
 ### 3. `/dashboard/caja` — Gestión de Caja
 - Maneja sesiones de caja (turnos).
@@ -218,10 +232,11 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - Alerta visual de stock bajo: si `stock_actual <= stock_minimo`.
 - **CRUD de productos:** Modal crear/editar (nombre + descripción).
 - **CRUD de variantes:** Modal crear/editar. El `stock_actual` está **deshabilitado en modo edición** porque la API no lo acepta en el endpoint PATCH de variantes.
-- **Ajuste de stock:** `adjustStock()` → `PATCH /productos/inventario/stock`.
+- **Ajuste de stock:** `adjustStock()` → `PATCH /productos/inventario/stock` (el `motivo` queda guardado en el kardex).
+- **Movimientos de stock / kardex (solo admin):** acción "Movimientos" en la tabla de variantes → `StockMovementsModal` (paginado de a 50, `fetchVariantMovements()` → `GET /productos/variante/{id}/movimientos`): fecha, tipo (badge venta / anulación / ajuste), cantidad con signo y color, stock resultante, usuario, motivo y id corto de la venta.
 - **Borrado (solo admin):** `deleteProduct()` / `deleteVariant()`. El backend responde 409 si la variante tiene ventas asociadas.
 - Búsqueda local client-side por nombre o SKU.
-- **Código (`features/productos`):** `useProducts`; componentes `ProductCard`, `VariantsTable`, `ProductModal`, `VariantModal`, `StockAdjustModal`; el borrado usa `DeleteConfirmDialog`.
+- **Código (`features/productos`):** `useProducts`; componentes `ProductCard`, `VariantsTable`, `ProductModal`, `VariantModal`, `StockAdjustModal`, `StockMovementsModal` (hook `useVariantMovements`); el borrado usa `DeleteConfirmDialog`.
 
 ### 5. `/dashboard/catalogos` — Marcas y Categorías
 - Dos listados con modales CRUD: marcas (`nombre`, `contacto_nombre`, `telefono`, `email`) y categorías (`nombre`, `descripcion`, `tiendanube_id`).
@@ -260,9 +275,14 @@ VariantUpdate { sku?, talle?, color?, precio_venta?, precio_costo?, stock_minimo
 // (sin stock_actual — solo se puede setear al crear)
 
 // Ventas
-SaleCreate { cliente_id?, metodo_pago: 'Efectivo'|'Tarjeta'|'QR', items: SaleItemCreate[] }  // sin precios ni total
+SaleCreate { cliente_id?, metodo_pago: 'Efectivo'|'Tarjeta'|'QR', items: SaleItemCreate[], descuento?: SaleAdjustment, recargo?: SaleAdjustment }  // sin precios ni total
+SaleAdjustment { tipo: 'porcentaje'|'monto', valor }
 SaleItemCreate { variante_id, cantidad }
-SaleResponse { id, total, metodo_pago, created_at }
+SaleResponse { id, total, metodo_pago, created_at, subtotal?, descuento_aplicado?, recargo_aplicado?, estado? }
+SaleListItem { id, created_at, subtotal, descuento_aplicado, recargo_aplicado, total, metodo_pago, estado: 'completada'|'anulada', cliente, usuario }
+SalesPage { items: SaleListItem[], total }   // GET /ventas/
+SaleDetail = SaleListItem & { motivo_anulacion?, anulada_at?, anulada_por?, items: SaleDetailItem[], total_costo? }  // costos solo admin
+StockMovement { id, created_at, tipo: 'venta'|'anulacion'|'ajuste', cantidad (con signo), stock_resultante, venta_id, motivo, usuario }  // features/productos
 
 // Caja
 CashSummary { sesion_id, estado, fecha_apertura, monto_apertura, ventas_efectivo, ventas_tarjeta, ventas_qr, cantidad_ventas, ingresos, egresos, esperado_efectivo }
@@ -295,7 +315,10 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 | Módulo | Método | Path |
 |---|---|---|
 | Ventas | GET | `/api/v1/ventas/hoy` |
-| Ventas | POST | `/api/v1/ventas/` |
+| Ventas | POST | `/api/v1/ventas/` (acepta `descuento` / `recargo`) |
+| Ventas | GET | `/api/v1/ventas/?desde=&hasta=&metodo_pago=&estado=&cliente_id=&usuario_id=&limit=&offset=` → `{ items, total }` |
+| Ventas | GET | `/api/v1/ventas/{id}` |
+| Ventas | POST | `/api/v1/ventas/{id}/anular` 🔒 admin (body `{ motivo }`; 409 ya anulada) |
 | Caja | GET | `/api/v1/caja/estado` |
 | Caja | GET | `/api/v1/caja/resumen` (`null` si no hay sesión abierta) |
 | Caja | POST | `/api/v1/caja/apertura` |
@@ -310,6 +333,7 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 | Productos | PATCH | `/api/v1/productos/{id}` |
 | Productos | DELETE | `/api/v1/productos/{id}` 🔒 admin |
 | Productos | PATCH | `/api/v1/productos/inventario/stock` |
+| Variantes | GET | `/api/v1/productos/variante/{id}/movimientos?limit=&offset=` 🔒 admin |
 | Variantes | POST | `/api/v1/productos/variante` |
 | Variantes | PATCH | `/api/v1/productos/variante/{id}` |
 | Variantes | DELETE | `/api/v1/productos/variante/{id}` 🔒 admin (409 si tiene ventas) |
