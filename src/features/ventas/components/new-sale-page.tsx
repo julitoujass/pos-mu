@@ -40,9 +40,10 @@ export function NewSalePage() {
                     client={sale.clients.find(c => c.id === sale.selectedClient)}
                     hasClient={sale.selectedClient !== ''}
                     paymentMethod={sale.paymentMethod}
-                    totalAmount={sale.totalAmount}
+                    totals={sale.totals}
+                    adjustments={sale.adjustments}
                     processing={sale.processing}
-                    canCheckout={sale.cart.length > 0}
+                    canCheckout={sale.canCheckout}
                     error={sale.error}
                     successMsg={sale.successMsg}
                     onClearClient={() => sale.setSelectedClient('')}

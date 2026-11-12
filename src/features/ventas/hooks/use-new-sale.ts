@@ -2,16 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { useCurrentUser } from '@/features/auth'
 import { fetchClients, type Client } from '@/features/clientes'
 import { fetchProducts } from '@/features/productos'
 import { getErrorMessage } from '@/lib/errors'
 import { formatMoney } from '@/lib/money'
 import { processSale } from '../api'
 import { addVariantToCart, cartItemCount, cartTotal, changeQuantity, findVariant, flattenVariants, type CartResult } from '../cart'
-import type { CartItem, PaymentMethod, SaleCreate, SaleResponse, SearchableVariant } from '../types'
+import { computeSaleTotals, exceedsEmployeeDiscountLimit, parseAdjustment } from '../pricing'
+import type { AdjustmentType, CartItem, PaymentMethod, SaleCreate, SaleResponse, SearchableVariant } from '../types'
 
 /** State and actions of the POS screen: catalog lookup, cart and checkout. */
 export function useNewSale() {
+    const { isAdmin } = useCurrentUser()
+
     // Data
     const [searchableVariants, setSearchableVariants] = useState<SearchableVariant[]>([])
     const [clients, setClients] = useState<Client[]>([])
@@ -27,6 +31,10 @@ export function useNewSale() {
     const [selectedClient, setSelectedClient] = useState<string>('') // empty string = Consumidor Final
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Efectivo')
     const [skuInput, setSkuInput] = useState('')
+    const [discountType, setDiscountType] = useState<AdjustmentType>('porcentaje')
+    const [discountInput, setDiscountInput] = useState('')
+    const [surchargeType, setSurchargeType] = useState<AdjustmentType>('porcentaje')
+    const [surchargeInput, setSurchargeInput] = useState('')
 
     const skuInputRef = useRef<HTMLInputElement>(null)
 
@@ -37,7 +45,7 @@ export function useNewSale() {
     // Any change to the sale contents invalidates the current attempt's key.
     useEffect(() => {
         idempotencyKeyRef.current = null
-    }, [cart, paymentMethod, selectedClient])
+    }, [cart, paymentMethod, selectedClient, discountType, discountInput, surchargeType, surchargeInput])
 
     useEffect(() => {
         async function loadInitialData() {
@@ -101,8 +109,16 @@ export function useNewSale() {
         setSearchableVariants(flattenVariants(await fetchProducts()))
     }
 
+    const subtotal = cartTotal(cart)
+    const discount = parseAdjustment(discountType, discountInput)
+    const surcharge = parseAdjustment(surchargeType, surchargeInput)
+    const totals = computeSaleTotals(subtotal, discount.adjustment, surcharge.adjustment)
+    // The server is authoritative; this only avoids a request that is sure to be rejected.
+    const discountOverLimit = !isAdmin && exceedsEmployeeDiscountLimit(subtotal, discount.adjustment)
+    const adjustmentsValid = !discount.error && !surcharge.error && !discountOverLimit
+
     async function checkout() {
-        if (cart.length === 0 || processing) return
+        if (cart.length === 0 || processing || !adjustmentsValid) return
 
         setProcessing(true)
         setError(null)
@@ -121,7 +137,9 @@ export function useNewSale() {
                     cantidad: i.quantity
                 })),
                 metodo_pago: paymentMethod,
-                cliente_id: selectedClient || null
+                cliente_id: selectedClient || null,
+                ...(discount.adjustment && { descuento: discount.adjustment }),
+                ...(surcharge.adjustment && { recargo: surcharge.adjustment }),
             }
 
             sale = await processSale(saleData, idempotencyKey)
@@ -143,6 +161,8 @@ export function useNewSale() {
         setSkuInput('')
         setSelectedClient('')
         setPaymentMethod('Efectivo')
+        setDiscountInput('')
+        setSurchargeInput('')
 
         try {
             await reloadVariants()
@@ -162,7 +182,22 @@ export function useNewSale() {
         error,
         successMsg,
         cart,
-        totalAmount: cartTotal(cart),
+        totals,
+        adjustments: {
+            isAdmin,
+            discountType,
+            discountInput,
+            discountError: discount.error ?? null,
+            discountOverLimit,
+            surchargeType,
+            surchargeInput,
+            surchargeError: surcharge.error ?? null,
+            setDiscountType,
+            setDiscountInput,
+            setSurchargeType,
+            setSurchargeInput,
+        },
+        canCheckout: cart.length > 0 && adjustmentsValid,
         totalItems: cartItemCount(cart),
         selectedClient,
         setSelectedClient,

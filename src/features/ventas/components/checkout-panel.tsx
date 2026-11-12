@@ -1,14 +1,17 @@
 import { AlertCircle, Banknote, CheckCircle2, CreditCard, Loader2, QrCode, User, UserPlus, X } from 'lucide-react'
 import type { Client } from '@/features/clientes'
 import { formatMoney } from '@/lib/money'
+import type { SaleTotals } from '../pricing'
 import { PAYMENT_METHODS, type PaymentMethod } from '../types'
+import { AdjustmentsSection, type AdjustmentsState } from './adjustments-section'
 
 type CheckoutPanelProps = {
     /** Selected client, or undefined for "Consumidor Final". */
     client: Client | undefined
     hasClient: boolean
     paymentMethod: PaymentMethod
-    totalAmount: number
+    totals: SaleTotals
+    adjustments: AdjustmentsState
     processing: boolean
     canCheckout: boolean
     error: string | null
@@ -23,7 +26,8 @@ export function CheckoutPanel({
     client,
     hasClient,
     paymentMethod,
-    totalAmount,
+    totals,
+    adjustments,
     processing,
     canCheckout,
     error,
@@ -127,10 +131,12 @@ export function CheckoutPanel({
             <div className="border-t border-border my-2"></div>
 
             <div className="space-y-4">
+                <AdjustmentsSection state={adjustments} totals={totals} />
+
                 <div className="flex justify-between items-end">
                     <span className="text-muted-foreground font-medium">Total a Pagar</span>
                     <span className="text-4xl font-black text-foreground tracking-tight">
-                        {formatMoney(totalAmount)}
+                        {formatMoney(totals.total)}
                     </span>
                 </div>
 
