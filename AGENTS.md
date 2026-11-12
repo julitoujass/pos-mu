@@ -77,20 +77,24 @@ src/
 │       ├── usuarios/page.tsx      # → <UsuariosPage />    (features/usuarios, solo admin)
 │       ├── stock-bajo/page.tsx    # → <LowStockPage />    (features/productos, ambos roles)
 │       ├── auditoria/page.tsx     # → <AuditoriaPage />   (features/auditoria, solo admin)
+│       ├── pagos/page.tsx         # → <PagosRevisionPage /> (features/pagos, solo admin)
 │       └── settings/page.tsx      # → <SettingsPage />    (features/configuracion, solo admin)
 │   └── ticket/[id]/page.tsx       # → <TicketPage />      (features/ventas) FUERA del layout del dashboard; exige sesión (ver Autenticación)
 ├── features/
 │   ├── auth/                      # api.ts (fetchMe), types.ts, current-user.tsx (CurrentUserProvider/useCurrentUser),
 │   │                              # components/{admin-only,login-form}.tsx
 │   ├── ventas/                    # api.ts, types.ts, cart.ts (carrito), pricing.ts (descuento/recargo), dates.ts,
-│   │                              # hooks/{use-new-sale,use-sales-history,use-sale-detail}.ts,
+│   │                              # hooks/{use-new-sale,use-sale-adjustments,use-terminal-checkout,use-sales-history,use-sale-detail}.ts,
 │   │                              # components/{new-sale-page,sku-scanner,cart-table,checkout-panel,adjustments-section,client-selector-modal,
 │   │                              #   sales-history-page,sales-history-filters,sales-history-table,sale-detail-modal,sale-detail-parts,cancel-sale-dialog,
 │   │                              #   return-modal,sale-returns-history,export-sales-button,ticket-page,ticket-view,sale-status-badge}.tsx,
 │   │                              # returns.ts (devoluciones parciales, puro), ticket-format.ts (layout del ticket, puro),
 │   │                              # export.ts (fetchAllSales + columnas CSV), open-ticket.ts
 │   ├── configuracion/             # api.ts (fetchSettings/updateSettings), types.ts, hooks/use-business-settings.ts (cualquier rol),
-│   │                              # components/{settings-page,settings-form}.tsx
+│   │                              # components/{settings-page,settings-form,terminal-settings-section}.tsx
+│   ├── pagos/                     # Cobros con terminal (Clover / fake): types.ts, api.ts, payment-states.ts (puro), review-filters.ts (puro),
+│   │                              # hooks/{use-terminal-payment,use-terminal-status,use-payments-review}.ts,
+│   │                              # components/{payment-waiting-modal,pagos-revision-page,payments-table,payment-status-badge}.tsx
 │   ├── auditoria/                 # api.ts, types.ts, hooks/use-audit-log.ts, components/{auditoria-page,audit-filters,audit-detail-modal}.tsx
 │   ├── caja/                      # api.ts, types.ts, hooks/{use-cash-session,use-sessions-history}.ts,
 │   │                              # components/{caja-page,open-register-form,cash-summary-cards,shift-sales-summary,
@@ -156,7 +160,7 @@ vitest.config.ts                   # Vitest (entorno node por defecto, alias @/ 
 
 Reglas de dependencia:
 - `app/` → `features/` → `components/ui` y `lib/`. `lib/` y `components/ui` **nunca** importan de `features/`.
-- Una feature importa de otra **solo por su `index.ts`** (`@/features/productos`), nunca archivos internos. Hoy: `ventas` usa `productos` y `clientes`; `dashboard` usa `ventas` y `caja`; todas pueden usar `auth`.
+- Una feature importa de otra **solo por su `index.ts`** (`@/features/productos`), nunca archivos internos. Hoy: `ventas` usa `productos`, `clientes` y `pagos`; `configuracion` usa `pagos`; `dashboard` usa `ventas` y `caja`; todas pueden usar `auth`.
 - Un componente va a `components/ui` solo si es presentacional y lo usan 2+ features; si no, vive en su feature.
 
 Los tests viven junto al código que prueban (`*.test.ts` / `*.test.tsx`). Los de API mockean `fetch` y `@/lib/supabase/client`. Los de componentes usan jsdom + Testing Library y declaran el entorno por archivo con `// @vitest-environment jsdom` en la primera línea (el resto corre en `node`).
@@ -189,6 +193,8 @@ El backend aplica la matriz de permisos; la UI la refleja para no mostrar accion
 | Historial de ventas y detalle (costos solo admin) | ✅ | ✅ |
 | Descuento en la venta | hasta 10% del subtotal | sin límite |
 | Anular ventas | ❌ | ✅ |
+| Cobrar con el terminal (tarjeta/QR) y ver su estado | ✅ | ✅ |
+| Pagos a revisar, conciliar, configurar el terminal | ❌ | ✅ |
 | Movimientos de stock (kardex) de una variante | ❌ | ✅ |
 | Gestión de usuarios (rol y activo/inactivo) | ❌ | ✅ |
 
@@ -197,7 +203,7 @@ El backend aplica la matriz de permisos; la UI la refleja para no mostrar accion
 - `GET /usuarios/me` devuelve `{ id, email, rol, activo }`.
 - **`CurrentUserProvider` / `useCurrentUser()`** (`src/features/auth/current-user.tsx`, exportados por `@/features/auth`): `dashboard/layout.tsx` envuelve el dashboard con el provider, que llama a `fetchMe()` **una sola vez**. Las páginas usan `const { user, isAdmin, loading } = useCurrentUser()`; **no llamar a `fetchMe()` directamente** desde páginas. Si `/usuarios/me` responde 403 "Usuario inactivo", el provider cierra la sesión de Supabase, muestra un toast y redirige a `/`.
 - **`<AdminOnly>`** (`src/features/auth/components/admin-only.tsx`, exportado por `@/features/auth`): envuelve el contenido de las páginas solo-admin (`reportes`, `usuarios`). Muestra skeleton mientras carga y, si no es admin, un estado vacío "No tenés permisos para ver esta sección" (sin redirect). El patrón es: el contenedor de la feature (`ReportesPage`, `UsuariosPage`) renderiza `<AdminOnly><XContent /></AdminOnly>` para que los fetch de admin no se disparen para empleados.
-- El sidebar oculta Reportes y Usuarios (`adminOnly`) si no es admin; Catálogos es visible para todos.
+- El sidebar oculta Reportes, Usuarios, Auditoría y Pagos (`adminOnly`) si no es admin; Catálogos es visible para todos.
 - Los controles de escritura se ocultan con `isAdmin` (productos, catálogos, historial de caja). La protección real sigue siendo el 403 del backend.
 - **Errores de API:** `apiFetch`/`apiJson` (`src/lib/http.ts`) usan `toApiError(res, fallback)` en todos los `!res.ok`: lanzan `ApiError` (con `status`) cuyo mensaje es el `detail` del backend (403, 409, 400, 422) o el `fallback`. Los toasts muestran ese mensaje con `getErrorMessage`.
 
@@ -229,6 +235,7 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - **Cliente:** Selector modal que filtra por nombre, DNI o email. Default es "Consumidor Final" (cliente_id = null).
 - **Precios del lado del servidor:** el front envía solo `{ variante_id, cantidad }` por ítem, el método de pago y el cliente. Los precios y el total los toma el backend de la DB; el total mostrado en pantalla es una estimación (`roundMoney`/`formatMoney`) y el toast de éxito muestra el `total` real devuelto por el servidor.
 - **Descuento y recargo (opcionales):** en el checkout, cada uno con toggle `%` / `$` y un input parseado con `parseMoneyInput` (`AdjustmentsSection`). Se envían como `descuento` / `recargo` `{ tipo: 'porcentaje'|'monto', valor }` solo si están seteados (porcentaje ≤ 100). Reglas (espejo del backend, `pricing.ts`): `descuento = subtotal*valor/100` o `valor`; el recargo porcentual se aplica sobre `subtotal − descuento`; `total = subtotal − descuento + recargo`, redondeado a 2 decimales. `computeSaleTotals` calcula la estimación y `exceedsEmployeeDiscountLimit(subtotal, descuento, maxPercent)` valida el tope para empleados: ya no es fijo, viene de `descuento_max_empleado` de la configuración (`useBusinessSettings()`, 10% mientras carga). La UI muestra "máx. N%" y bloquea el cobro; el backend sigue siendo la autoridad y responde 403.
+- **Cobro con terminal:** si el método es Tarjeta o QR **y** `useTerminalStatus()` dice `habilitado` (`usesTerminal`), "Confirmar Venta" llama a `POST /pagos/terminal` (`useTerminalCheckout`) en vez de `processSale` y abre `PaymentWaitingModal`. La venta se registra en el backend al aprobarse; cuando el polling ve `venta_registrada` se limpia el carrito/ajustes, se devuelve el foco al SKU y se muestra el mismo toast con "Imprimir ticket". Efectivo, o la integración deshabilitada, siguen el flujo normal sin cambios. Junto a los métodos de pago se muestra "Clover conectado" / "Clover desconectado" (nada si está deshabilitada). Ver sección 12.
 - **Idempotency-Key:** se genera un `crypto.randomUUID()` por intento de cobro y se envía en el header `Idempotency-Key` (`processSale(data, key)`). Se reutiliza si el usuario reintenta tras un error (el backend devuelve la misma venta, sin duplicar) y se reinicia tras una venta exitosa o al cambiar carrito, método de pago, cliente, descuento o recargo.
 - **Proceso de venta:** Al confirmar, llama a `processSale()`; con la venta registrada libera el botón y devuelve el foco al SKU, y recarga las variantes en segundo plano para actualizar stock local. Si la carga inicial de catálogo/clientes falla, la página muestra `<ErrorState>` con "Reintentar". Si la recarga falla, se muestra el éxito de la venta más un toast de advertencia aparte (nunca como error de venta). Los errores del backend (400 sin caja abierta, 409 stock insuficiente, 404, 422) se muestran con su `detail` en un toast.
 - **Ticket:** tras cobrar, el toast de éxito incluye la acción "Imprimir ticket" (`openTicket(id)` → `window.open('/ticket/<id>', '_blank')`).
@@ -314,6 +321,15 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 ### 11. `/dashboard/auditoria` — Auditoría (solo admin)
 - `AuditoriaPage` (`features/auditoria`): filtros desde/hasta/evento/entidad, tabla paginada (50 por página) y "Ver detalle" (`AuditDetailModal`) con el JSON formateado de `payload_enviado` y `respuesta_recibida`.
 
+### 12. Cobros con terminal — `features/pagos`
+- **Flujo:** `startTerminalPayment` (`POST /pagos/terminal`, 202 `{ pago_id, total, estado }`) → `useTerminalPayment(pagoId, { onFinal })` consulta `GET /pagos/{id}` cada 1 s, se detiene en estados finales y tras 3 min (`timedOut`: "Seguí verificando desde Pagos a revisar"). Los errores de red transitorios no cortan el polling. `cancelPayment` (`POST /pagos/{id}/cancelar`) pide cancelar; el estado final llega igual por polling.
+- **`PaymentWaitingModal`** (`dismissible={false}`, región `aria-live="polite"`): total y método; por estado (`paymentPhase`): espera → spinner + "Cancelar"; `aprobado` → "Registrando la venta…"; `indeterminado` → "Verificando el pago…"; éxito → marca, •••• últimos 4, autorización, "Imprimir ticket" y "Nueva venta"; `rechazado`/`cancelado` → "Pago no aprobado" con "Reintentar" (nuevo cobro con la misma venta) y "Cambiar método"; `error_registro`/`reembolsado` → "No se pudo registrar la venta…" + `error` + "Cerrar". Es presentacional: recibe callbacks (`onPrintTicket`, `onRetry`, `onClose`) para no depender de `ventas`.
+- **Estados** (`payment-states.ts`): `pendiente`, `enviado` (esperando al cliente), `aprobado` (registrando la venta), `venta_registrada` (**final**, éxito), `rechazado` (**final**), `cancelado` (**final**), `indeterminado` (verificando; **no final**, lo resuelve la conciliación), `error_registro` (cobrado pero la venta falló, se intentó reembolsar; **no final**), `reembolsado` (**final**).
+- **`/dashboard/pagos` — Pagos a revisar (solo admin, `PagosRevisionPage` envuelta en `<AdminOnly>`):** filtro por estado (por defecto "A revisar" = `indeterminado` + `error_registro`, sin paginar; el resto pagina de a 50), tabla (fecha, monto, método, estado, error), "Ver venta" (abre el ticket) y "Conciliar" (`POST /pagos/{id}/conciliar`, botón con loading) para pagos no finales.
+- **Configuración → "Terminal de pago" (solo admin, `TerminalSettingsSection`):** proveedor (solo lectura), switch Habilitado, serie del dispositivo y ID de POS (los vacíos no se envían), estado Conectado/Desconectado → `PATCH /integraciones/terminal`.
+- **Ticket y detalle de venta:** si `GET /ventas/{id}` trae `pago`, `formatPaymentSummary` (`ticket-format.ts`) arma "Tarjeta VISA •••• 4242 · Aut. 123456 · 3 cuotas" (omite lo que falte); se muestra en el ticket y en `SaleDetailModal`.
+- **Probar con el terminal fake:** con el backend en `PAYMENT_TERMINAL=fake`, activar "Habilitado" en Configuración → Terminal de pago; cobrar con Tarjeta o QR. Montos que terminan en `,13` se rechazan y en `,99` quedan `indeterminado` (aparecen en Pagos a revisar).
+
 ---
 
 ## Tipos TypeScript Clave (`src/features/<feature>/types.ts`)
@@ -374,6 +390,13 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 | Configuración | GET | `/api/v1/configuracion` |
 | Configuración | PATCH | `/api/v1/configuracion` 🔒 admin |
 | Auditoría | GET | `/api/v1/auditoria/?desde=&hasta=&evento=&entidad=&usuario_id=&limit=&offset=` 🔒 admin → `{ items, total }` |
+| Terminal | GET | `/api/v1/integraciones/terminal` → `{ proveedor, habilitado, conectado }` |
+| Terminal | PATCH | `/api/v1/integraciones/terminal` 🔒 admin (`habilitado`, `device_id`, `pos_id`) |
+| Pagos | POST | `/api/v1/pagos/terminal` (202; 409 deshabilitada / cobro en curso) |
+| Pagos | GET | `/api/v1/pagos/{id}` |
+| Pagos | POST | `/api/v1/pagos/{id}/cancelar` |
+| Pagos | GET | `/api/v1/pagos/?estado=&limit=&offset=` 🔒 admin → `{ items, total }` |
+| Pagos | POST | `/api/v1/pagos/{id}/conciliar` 🔒 admin |
 | Caja | GET | `/api/v1/caja/estado` |
 | Caja | GET | `/api/v1/caja/resumen` (`null` si no hay sesión abierta) |
 | Caja | POST | `/api/v1/caja/apertura` |
