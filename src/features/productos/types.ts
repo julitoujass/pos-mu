@@ -59,3 +59,19 @@ export type StockAdjust = {
     cantidad: number;
     motivo: string;
 };
+
+export type StockMovementType = 'venta' | 'anulacion' | 'ajuste';
+
+export type StockMovement = {
+    id: string;
+    created_at: string;
+    tipo: StockMovementType;
+    /** Signed: negative when stock goes out */
+    cantidad: number;
+    stock_resultante: number;
+    venta_id: string | null;
+    motivo: string | null;
+    usuario: { id: string; nombre: string } | null;
+};
+
+export type StockMovementsPage = { items: StockMovement[]; total: number };

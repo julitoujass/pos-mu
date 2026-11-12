@@ -14,6 +14,7 @@ import type { Product, Variant } from '../types'
 import { ProductCard } from './product-card'
 import { ProductModal } from './product-modal'
 import { StockAdjustModal } from './stock-adjust-modal'
+import { StockMovementsModal } from './stock-movements-modal'
 import { VariantModal } from './variant-modal'
 
 type ProductModalState = { mode: 'create' } | { mode: 'edit'; product: Product }
@@ -29,6 +30,7 @@ export function ProductosPage() {
     const [productModal, setProductModal] = useState<ProductModalState | null>(null)
     const [variantModal, setVariantModal] = useState<VariantModalState | null>(null)
     const [stockAdjustVariant, setStockAdjustVariant] = useState<Variant | null>(null)
+    const [movementsVariant, setMovementsVariant] = useState<Variant | null>(null)
     const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
     const [deleting, setDeleting] = useState(false)
 
@@ -129,6 +131,7 @@ export function ProductosPage() {
                             onCreateVariant={() => setVariantModal({ productId: product.id, variant: null })}
                             onEditVariant={(variant) => setVariantModal({ productId: product.id, variant })}
                             onAdjustStock={setStockAdjustVariant}
+                            onViewMovements={setMovementsVariant}
                             onDeleteVariant={(variant) => setDeleteTarget({ type: 'variant', item: variant })}
                         />
                     ))}
@@ -159,6 +162,13 @@ export function ProductosPage() {
                     variant={stockAdjustVariant}
                     onClose={() => setStockAdjustVariant(null)}
                     onSuccess={() => { setStockAdjustVariant(null); reload(); }}
+                />
+            )}
+
+            {movementsVariant && (
+                <StockMovementsModal
+                    variant={movementsVariant}
+                    onClose={() => setMovementsVariant(null)}
                 />
             )}
 

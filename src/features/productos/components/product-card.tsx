@@ -12,6 +12,7 @@ type ProductCardProps = {
     onCreateVariant: () => void
     onEditVariant: (variant: Variant) => void
     onAdjustStock: (variant: Variant) => void
+    onViewMovements: (variant: Variant) => void
     onDeleteVariant: (variant: Variant) => void
 }
 
@@ -26,6 +27,7 @@ export function ProductCard({
     onCreateVariant,
     onEditVariant,
     onAdjustStock,
+    onViewMovements,
     onDeleteVariant,
 }: ProductCardProps) {
     return (
@@ -90,6 +92,7 @@ export function ProductCard({
                         isAdmin={isAdmin}
                         onEdit={onEditVariant}
                         onAdjustStock={onAdjustStock}
+                        onViewMovements={onViewMovements}
                         onDelete={onDeleteVariant}
                     />
                 </div>

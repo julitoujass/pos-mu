@@ -1,4 +1,4 @@
-import { Pencil, PlusCircle, Trash2 } from 'lucide-react'
+import { History, Pencil, PlusCircle, Trash2 } from 'lucide-react'
 import { formatMoney } from '@/lib/money'
 import type { Variant } from '../types'
 
@@ -8,10 +8,11 @@ type VariantsTableProps = {
     isAdmin: boolean
     onEdit: (variant: Variant) => void
     onAdjustStock: (variant: Variant) => void
+    onViewMovements: (variant: Variant) => void
     onDelete: (variant: Variant) => void
 }
 
-export function VariantsTable({ variants, isAdmin, onEdit, onAdjustStock, onDelete }: VariantsTableProps) {
+export function VariantsTable({ variants, isAdmin, onEdit, onAdjustStock, onViewMovements, onDelete }: VariantsTableProps) {
     if (variants.length === 0) {
         return <p className="text-sm text-muted-foreground text-center py-4">Sin variantes</p>
     }
@@ -58,6 +59,14 @@ export function VariantsTable({ variants, isAdmin, onEdit, onAdjustStock, onDele
                                                 title="Ajustar stock"
                                             >
                                                 <PlusCircle size={14} />
+                                            </button>
+                                            <button
+                                                onClick={() => onViewMovements(variant)}
+                                                className="p-1.5 rounded-lg text-muted-foreground hover:text-brand hover:bg-brand/10 transition-colors"
+                                                title="Movimientos"
+                                                aria-label="Movimientos de stock"
+                                            >
+                                                <History size={14} />
                                             </button>
                                             <button
                                                 onClick={() => onDelete(variant)}

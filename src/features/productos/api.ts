@@ -4,6 +4,7 @@ import type {
     ProductCreate,
     ProductUpdate,
     StockAdjust,
+    StockMovementsPage,
     Variant,
     VariantCreate,
     VariantUpdate,
@@ -44,4 +45,15 @@ export async function deleteVariant(id: string): Promise<void> {
 
 export function adjustStock(data: StockAdjust): Promise<Variant> {
     return apiJson('/productos/inventario/stock', 'Failed to adjust stock', { method: 'PATCH', body: data });
+}
+
+/** Admin only: paginated stock ledger (kardex) of a variant. */
+export function fetchVariantMovements(
+    variantId: string,
+    { limit = 50, offset = 0 }: { limit?: number; offset?: number } = {},
+): Promise<StockMovementsPage> {
+    return apiJson(
+        `/productos/variante/${variantId}/movimientos?limit=${limit}&offset=${offset}`,
+        'Failed to fetch stock movements',
+    );
 }
