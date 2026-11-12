@@ -44,9 +44,9 @@ src/app/api/python/[...path]/route.ts
 ```
 Este proxy reenvía la solicitud (headers excepto `host`/`connection`, body y query params) al backend FastAPI y devuelve status y headers tal cual (500 JSON si falla el fetch). El proxy **no agrega** el JWT: el header `Authorization: Bearer <token>` ya lo pone el navegador vía `getAuthHeaders()` y el proxy lo deja pasar.
 
-La constante en `src/lib/api.ts` es:
+La constante en `src/lib/http.ts` es:
 ```ts
-const API_URL = '/api/python';
+export const API_URL = '/api/python';
 ```
 El target interno es `http://127.0.0.1:8000/api/v1`.
 
@@ -54,52 +54,86 @@ El target interno es `http://127.0.0.1:8000/api/v1`.
 
 ## Estructura de Carpetas
 
+Arquitectura "screaming": el código se organiza por **feature de negocio**, no por tipo de archivo.
+
 ```
 src/
-├── app/
-│   ├── page.tsx                   # Página de login (pública)
+├── app/                           # SOLO rutas: páginas finas que renderizan el contenedor de una feature
+│   ├── page.tsx                   # Página de login (pública) → <LoginForm /> de features/auth
 │   ├── layout.tsx                 # Root layout con ThemeProvider
 │   ├── globals.css                # Design tokens + TailwindCSS
-│   ├── api/
-│   │   └── python/[...path]/      # Proxy catch-all hacia FastAPI
-│   │       └── route.ts
+│   ├── api/python/[...path]/      # Proxy catch-all hacia FastAPI (route.ts + route.test.ts)
 │   └── dashboard/
-│       ├── layout.tsx             # Sidebar + navegación principal (client)
-│       ├── page.tsx               # Panel principal (KPIs del día)
-│       ├── venta/page.tsx         # POS — carrito de ventas
-│       ├── caja/page.tsx          # Gestión de caja (apertura/cierre/movimientos)
-│       ├── productos/page.tsx     # CRUD de productos y variantes + ajuste de stock
-│       ├── catalogos/page.tsx     # CRUD de marcas y categorías
-│       ├── clientes/page.tsx      # CRUD de clientes
-│       ├── reportes/page.tsx      # Reportes por rango de fechas (solo admin)
-│       └── usuarios/page.tsx      # Listado de usuarios y asignación de rol (solo admin)
+│       ├── layout.tsx             # Sidebar + navegación + <CurrentUserProvider> (client)
+│       ├── page.tsx               # → <DashboardHome />   (features/dashboard)
+│       ├── venta/page.tsx         # → <NewSalePage />     (features/ventas)
+│       ├── caja/page.tsx          # → <CajaPage />        (features/caja)
+│       ├── productos/page.tsx     # → <ProductosPage />   (features/productos)
+│       ├── catalogos/page.tsx     # → <CatalogosPage />   (features/catalogos)
+│       ├── clientes/page.tsx      # → <ClientesPage />    (features/clientes)
+│       ├── reportes/page.tsx      # → <ReportesPage />    (features/reportes, solo admin)
+│       └── usuarios/page.tsx      # → <UsuariosPage />    (features/usuarios, solo admin)
+├── features/
+│   ├── auth/                      # api.ts (fetchMe), types.ts, current-user.tsx (CurrentUserProvider/useCurrentUser),
+│   │                              # components/{admin-only,login-form}.tsx
+│   ├── ventas/                    # api.ts, types.ts, cart.ts (lógica pura del carrito), hooks/use-new-sale.ts,
+│   │                              # components/{new-sale-page,sku-scanner,cart-table,checkout-panel,client-selector-modal}.tsx
+│   ├── caja/                      # api.ts, types.ts, hooks/{use-cash-session,use-sessions-history}.ts,
+│   │                              # components/{caja-page,open-register-form,cash-summary-cards,shift-sales-summary,
+│   │                              #   movements-table,close-register-form,movement-modal,sessions-history-modal,session-list}.tsx
+│   ├── productos/                 # api.ts, types.ts, hooks/use-products.ts,
+│   │                              # components/{productos-page,product-card,variants-table,product-modal,variant-modal,stock-adjust-modal}.tsx
+│   ├── catalogos/                 # api.ts, types.ts, hooks/use-catalogos.ts,
+│   │                              # components/{catalogos-page,catalog-list,catalog-form-modal,marca-form-modal,categoria-form-modal}.tsx
+│   ├── clientes/                  # api.ts, types.ts, hooks/use-clients.ts,
+│   │                              # components/{clientes-page,clients-table,client-modal}.tsx
+│   ├── reportes/                  # api.ts, types.ts, format.ts, date-presets.ts, hooks/use-reportes.ts,
+│   │                              # components/{reportes-page,date-range-selector,kpi-cards,sales-by-day-chart,
+│   │                              #   top-products,cash-report-table,report-states}.tsx
+│   ├── usuarios/                  # api.ts, types.ts, hooks/use-users.ts, components/{usuarios-page,users-table}.tsx
+│   └── dashboard/                 # hooks/use-dashboard-summary.ts, components/dashboard-home.tsx (panel principal)
 ├── components/
-│   ├── auth/login-form.tsx        # Formulario de login con Supabase
 │   ├── theme-provider.tsx         # Wrapper de next-themes
 │   ├── theme-toggle.tsx           # Botón light/dark
-│   ├── auth/admin-only.tsx        # <AdminOnly>: guard de página para rutas solo admin
-│   └── ui/skeleton.tsx            # Componente de skeleton loader
-├── lib/
-│   ├── api.ts                     # Todas las funciones fetch + types TypeScript
+│   └── ui/                        # Kit presentacional compartido (sin lógica de negocio)
+│       ├── modal.tsx              # <Modal>: shell accesible de todos los modales
+│       ├── confirm-dialog.tsx     # <ConfirmDialog>: confirmaciones (reemplaza window.confirm)
+│       ├── delete-confirm-dialog.tsx # <DeleteConfirmDialog>: "Confirmar eliminación" estándar
+│       ├── empty-state.tsx        # <EmptyState>: tarjeta de lista vacía
+│       ├── form-error.tsx         # <FormError>: banner de error de formulario
+│       └── skeleton.tsx           # <Skeleton>
+├── lib/                           # Transversal, sin conocimiento de features
+│   ├── http.ts                    # API_URL, getAuthHeaders, toApiError, apiFetch/apiJson, toQueryString
 │   ├── errors.ts                  # getErrorMessage, getApiErrorDetail, ApiError (con status), isInactiveUserError
-│   ├── errors.test.ts             # Tests de los helpers de errores
-│   ├── auth/current-user.tsx      # CurrentUserProvider + useCurrentUser() (usuario/rol compartido)
-│   ├── money.ts                   # roundMoney / formatMoney / parseMoneyInput (dinero)
-│   ├── money.test.ts              # Tests de los helpers de dinero
-│   ├── api.test.ts                # Tests de api.ts (fetch mockeado)
-│   └── supabase/
-│       ├── client.ts              # createClient() para uso client-side
-│       ├── server.ts              # createClient() para uso server-side
-│       └── middleware.ts          # updateSession() para refresh de JWT
+│   ├── money.ts                   # roundMoney / formatMoney / parseMoneyInput
+│   └── supabase/                  # client.ts, server.ts, middleware.ts (updateSession)
+├── test/json-response.ts          # Helper de tests: Response JSON para mockear fetch
 └── proxy.ts                       # Proxy de Next 16 (antes middleware.ts): protege rutas con Supabase
 
 # Raíz del repositorio (además de la configuración de Next/TypeScript/ESLint)
-vitest.config.ts                   # Vitest (entorno node, alias @/ → src/)
+vitest.config.ts                   # Vitest (entorno node por defecto, alias @/ → src/)
 .env.example                       # Plantilla de variables de entorno (sin valores reales)
 .github/workflows/ci.yml           # CI: lint, typecheck, test y build
 ```
 
-Los tests viven junto al código que prueban (`*.test.ts`), por ejemplo `src/app/api/python/[...path]/route.test.ts` para el proxy de API.
+### Anatomía de una feature (`src/features/<feature>/`)
+
+| Archivo | Contenido |
+|---|---|
+| `types.ts` | Tipos del dominio y de los payloads de la API |
+| `api.ts` | Funciones fetch de la feature, construidas sobre `apiJson`/`apiFetch` de `@/lib/http` |
+| `hooks/use-*.ts` | Carga de datos y estado (p. ej. `useProducts`, `useCashSession`, `useNewSale`) |
+| `components/<feature>-page.tsx` | **Contenedor**: usa los hooks, maneja qué modal está abierto y compone los presentacionales |
+| `components/*.tsx` | **Presentacionales**: reciben props; los modales de formulario llaman a su `api.ts` y avisan con `onSuccess` |
+| `index.ts` | API pública de la feature: `api`, `types` y el contenedor de página |
+| `*.test.ts(x)` | Tests junto al código (`api.test.ts`, `cart.test.ts`, ...) |
+
+Reglas de dependencia:
+- `app/` → `features/` → `components/ui` y `lib/`. `lib/` y `components/ui` **nunca** importan de `features/`.
+- Una feature importa de otra **solo por su `index.ts`** (`@/features/productos`), nunca archivos internos. Hoy: `ventas` usa `productos` y `clientes`; `dashboard` usa `ventas` y `caja`; todas pueden usar `auth`.
+- Un componente va a `components/ui` solo si es presentacional y lo usan 2+ features; si no, vive en su feature.
+
+Los tests viven junto al código que prueban (`*.test.ts` / `*.test.tsx`). Los de API mockean `fetch` y `@/lib/supabase/client`. Los de componentes usan jsdom + Testing Library y declaran el entorno por archivo con `// @vitest-environment jsdom` en la primera línea (el resto corre en `node`).
 
 ---
 
@@ -107,7 +141,7 @@ Los tests viven junto al código que prueban (`*.test.ts`), por ejemplo `src/app
 
 - **Proveedor:** Supabase Auth (email/password)
 - **Protección de rutas:** El `src/proxy.ts` (convención `proxy` de Next 16, que reemplaza a `middleware.ts`; exporta la función `proxy`) llama a `updateSession()` en cada request (excepto assets estáticos e imágenes). Si no hay sesión válida, el usuario es redirigido al login.
-- **JWT en API calls:** `getAuthHeaders()` en `api.ts` obtiene el `access_token` de la sesión activa y lo pone como `Authorization: Bearer`.
+- **JWT en API calls:** `getAuthHeaders()` en `src/lib/http.ts` obtiene el `access_token` de la sesión activa y lo pone como `Authorization: Bearer`.
 - **Logout:** `supabase.auth.signOut()` desde el sidebar → redirect a `/`.
 
 ### Roles
@@ -130,11 +164,11 @@ El backend aplica la matriz de permisos; la UI la refleja para no mostrar accion
 - El backend valida el token con `supabase.auth.get_user()` y obtiene el rol desde `perfiles → roles` (cache en memoria de 5 min; si falla, el rol por defecto es `empleado`). Ver `admin-mu/app/api/auth_deps.py`.
 - Respuestas: 403 `{detail}` si no tiene permiso; `precio_costo` llega `null` para empleado; los usuarios inactivos reciben 403 "Usuario inactivo" en todas las llamadas.
 - `GET /usuarios/me` devuelve `{ id, email, rol, activo }`.
-- **`CurrentUserProvider` / `useCurrentUser()`** (`src/lib/auth/current-user.tsx`): `dashboard/layout.tsx` envuelve el dashboard con el provider, que llama a `fetchMe()` **una sola vez**. Las páginas usan `const { user, isAdmin, loading } = useCurrentUser()`; **no llamar a `fetchMe()` directamente** desde páginas. Si `/usuarios/me` responde 403 "Usuario inactivo", el provider cierra la sesión de Supabase, muestra un toast y redirige a `/`.
-- **`<AdminOnly>`** (`src/components/auth/admin-only.tsx`): envuelve el contenido de las páginas solo-admin (`reportes`, `usuarios`). Muestra skeleton mientras carga y, si no es admin, un estado vacío "No tenés permisos para ver esta sección" (sin redirect). El patrón es: `export default` renderiza `<AdminOnly><XContent /></AdminOnly>` para que los fetch de admin no se disparen para empleados.
+- **`CurrentUserProvider` / `useCurrentUser()`** (`src/features/auth/current-user.tsx`, exportados por `@/features/auth`): `dashboard/layout.tsx` envuelve el dashboard con el provider, que llama a `fetchMe()` **una sola vez**. Las páginas usan `const { user, isAdmin, loading } = useCurrentUser()`; **no llamar a `fetchMe()` directamente** desde páginas. Si `/usuarios/me` responde 403 "Usuario inactivo", el provider cierra la sesión de Supabase, muestra un toast y redirige a `/`.
+- **`<AdminOnly>`** (`src/features/auth/components/admin-only.tsx`, exportado por `@/features/auth`): envuelve el contenido de las páginas solo-admin (`reportes`, `usuarios`). Muestra skeleton mientras carga y, si no es admin, un estado vacío "No tenés permisos para ver esta sección" (sin redirect). El patrón es: el contenedor de la feature (`ReportesPage`, `UsuariosPage`) renderiza `<AdminOnly><XContent /></AdminOnly>` para que los fetch de admin no se disparen para empleados.
 - El sidebar oculta Reportes y Usuarios (`adminOnly`) si no es admin; Catálogos es visible para todos.
 - Los controles de escritura se ocultan con `isAdmin` (productos, catálogos, historial de caja). La protección real sigue siendo el 403 del backend.
-- **Errores de API:** `api.ts` usa `toApiError(res, fallback)` en todos los `!res.ok`: lanza `ApiError` (con `status`) cuyo mensaje es el `detail` del backend (403, 409, 400, 422) o el `fallback`. Los toasts muestran ese mensaje con `getErrorMessage`.
+- **Errores de API:** `apiFetch`/`apiJson` (`src/lib/http.ts`) usan `toApiError(res, fallback)` en todos los `!res.ok`: lanzan `ApiError` (con `status`) cuyo mensaje es el `detail` del backend (403, 409, 400, 422) o el `fallback`. Los toasts muestran ese mensaje con `getErrorMessage`.
 
 ---
 
@@ -153,7 +187,7 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 
 ### 1. `/dashboard` — Panel Principal
 - Muestra KPIs del día: total de ventas, estado de caja, acciones rápidas.
-- Llama en paralelo a `fetchSalesToday()` y `fetchCashStatus()`.
+- Llama en paralelo a `fetchSalesToday()` y `fetchCashStatus()` (`useDashboardSummary`, `features/dashboard`).
 
 ### 2. `/dashboard/venta` — POS / Nueva Venta
 - Flujo principal del POS. Es la página más compleja del sistema.
@@ -165,7 +199,7 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - **Precios del lado del servidor:** el front envía solo `{ variante_id, cantidad }` por ítem, el método de pago y el cliente. Los precios y el total los toma el backend de la DB; el total mostrado en pantalla es una estimación (`roundMoney`/`formatMoney`) y el toast de éxito muestra el `total` real devuelto por el servidor.
 - **Idempotency-Key:** se genera un `crypto.randomUUID()` por intento de cobro y se envía en el header `Idempotency-Key` (`processSale(data, key)`). Se reutiliza si el usuario reintenta tras un error (el backend devuelve la misma venta, sin duplicar) y se reinicia tras una venta exitosa o al cambiar carrito, método de pago o cliente.
 - **Proceso de venta:** Al confirmar, llama a `processSale()` y recarga las variantes para actualizar stock local. Si la recarga falla, se muestra el éxito de la venta más un toast de advertencia aparte (nunca como error de venta). Los errores del backend (400 sin caja abierta, 409 stock insuficiente, 404, 422) se muestran con su `detail` en un toast.
-- **Componente interno:** `ClientSelectorModal` (inline en el mismo archivo).
+- **Código (`features/ventas`):** `useNewSale` concentra el estado (carga, carrito, cobro e idempotencia); `cart.ts` tiene la lógica pura del carrito (testeada); componentes `SkuScanner`, `CartTable`, `CheckoutPanel`, `ClientSelectorModal`.
 
 ### 3. `/dashboard/caja` — Gestión de Caja
 - Maneja sesiones de caja (turnos).
@@ -175,7 +209,7 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - **Movimientos:** Ingresos y egresos manuales (`createCashMovement()`).
 - **Efectivo esperado:** viene de `fetchCashSummary()` → `GET /caja/resumen` (autoritativo en el backend: apertura + ventas en efectivo de ESTA sesión + ingresos − egresos). La tarjeta muestra el desglose: apertura, ventas en efectivo, tarjeta, QR, ingresos, egresos y efectivo esperado. Se refresca tras cada movimiento y con `refreshTrigger`.
 - **Sesiones anteriores (solo admin):** el botón y el modal con el historial de sesiones y sus movimientos solo se muestran a admin (`/caja/sesiones*` es admin en el backend). El resto de la página es igual para ambos roles.
-- **Componentes internos (inline):** `OpenRegisterForm`, `CashSummary`, `ShiftSalesSummary`, `MovementsTable`, `CloseRegisterForm`, `MovementModal`, `SessionsHistoryModal`.
+- **Código (`features/caja`):** `useCashSession` (estado, movimientos, resumen, `refresh`) y `useSessionsHistory`; componentes `OpenRegisterForm`, `CashSummaryCards`, `ShiftSalesSummary`, `MovementsTable`, `CloseRegisterForm` (confirma con `ConfirmDialog`), `MovementModal`, `SessionsHistoryModal`.
 
 ### 4. `/dashboard/productos` — Gestión de Productos
 - **empleado:** solo consulta (búsqueda, tabla de variantes con precio de venta, stock y alerta de stock bajo); sin costos, márgenes ni acciones de escritura. **admin:** todo lo de abajo.
@@ -187,11 +221,12 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - **Ajuste de stock:** `adjustStock()` → `PATCH /productos/inventario/stock`.
 - **Borrado (solo admin):** `deleteProduct()` / `deleteVariant()`. El backend responde 409 si la variante tiene ventas asociadas.
 - Búsqueda local client-side por nombre o SKU.
-- **Componentes internos (inline):** `ProductModal`, `VariantModal`.
+- **Código (`features/productos`):** `useProducts`; componentes `ProductCard`, `VariantsTable`, `ProductModal`, `VariantModal`, `StockAdjustModal`; el borrado usa `DeleteConfirmDialog`.
 
 ### 5. `/dashboard/catalogos` — Marcas y Categorías
 - Dos listados con modales CRUD: marcas (`nombre`, `contacto_nombre`, `telefono`, `email`) y categorías (`nombre`, `descripcion`, `tiendanube_id`).
 - Usa `fetchMarcas/createMarca/updateMarca/deleteMarca` y `fetchCategorias/createCategoria/updateCategoria/deleteCategoria`. Los errores de borrado del backend se muestran en toast.
+- **Código (`features/catalogos`):** `useCatalogos`; `CatalogList` (lista genérica), `CatalogFormModal` (shell común) + `MarcaFormModal` / `CategoriaFormModal`; el borrado usa `DeleteConfirmDialog`.
 - Visible para todos los roles: **empleado = solo lectura** (se ocultan crear/editar/borrar); **admin** puede crear, editar y borrar.
 
 ### 6. `/dashboard/clientes` — Gestión de Clientes
@@ -199,10 +234,10 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - Búsqueda server-side: el term se pasa como query param al backend (`?query=`).
 - **Campos del cliente:** nombre*, dni_cuit, email, telefono, direccion, ciudad, tipo_iva.
 - **Condición IVA (tipo_iva):** Opciones fijas: `Consumidor Final`, `Monotributista`, `Responsable Inscripto`, `Exento`.
-- **Componente interno (inline):** `ClientModal`.
+- **Código (`features/clientes`):** `useClients`; componentes `ClientsTable`, `ClientModal`.
 
 ### 7. `/dashboard/reportes` — Reportes (solo admin)
-- Filtro por rango de fechas (`fecha_inicio`, `fecha_fin`).
+- Filtro por rango de fechas (`fecha_inicio`, `fecha_fin`). Los montos se muestran en pesos enteros con `formatWholeMoney` (`features/reportes/format.ts`).
 - Llama a `fetchReporteVentas()`, `fetchReporteProductosTop()` y `fetchReporteCajas()`.
 - ⚠️ Los errores de `fetchReporteProductosTop()` se tragan con `.catch(() => [])`: si el endpoint falla, la tabla aparece vacía sin aviso.
 
@@ -210,12 +245,12 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - Lista usuarios (`fetchUsers()`) y roles disponibles (`fetchRoles()`).
 - Un dropdown por fila cambia el rol con `updateUserRole(id, rol_id)` → `PATCH /usuarios/{id}/rol`.
 - Un toggle Activo/Inactivo por fila llama a `updateUserActive(id, activo)` → `PATCH /usuarios/{id}/activo`.
-- Ambos cambios piden confirmación (`window.confirm`), **no son optimistas** (el estado local se actualiza con la respuesta del backend; ante error el control vuelve solo) y muestran el `detail` del backend en el toast (409: "No podés quitarte el rol de administrador" / "Debe quedar al menos un administrador activo"; 400: rol inexistente).
+- Ambos cambios piden confirmación (`ConfirmDialog`), **no son optimistas** (el estado local se actualiza con la respuesta del backend; ante error el control vuelve solo) y muestran el `detail` del backend en el toast (409: "No podés quitarte el rol de administrador" / "Debe quedar al menos un administrador activo"; 400: rol inexistente).
 - La fila del usuario actual (`useCurrentUser().user.id`) tiene rol y toggle deshabilitados.
 
 ---
 
-## Tipos TypeScript Clave (`src/lib/api.ts`)
+## Tipos TypeScript Clave (`src/features/<feature>/types.ts`)
 
 ```ts
 // Productos
@@ -245,7 +280,7 @@ Categoria { id, nombre, descripcion?, tiendanube_id?, created_at? }
 // Usuarios
 RoleResponse { id, nombre }
 UsuarioResponse { id, nombre, apellido?, activo, roles?: RoleResponse, created_at }
-MeResponse { id, email, rol }
+MeResponse { id, email, rol, activo? }   // features/auth
 
 // Reportes
 VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
@@ -325,14 +360,18 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 ## Convenciones de Desarrollo
 
 1. **Todas las páginas del dashboard son `'use client'`** — no hay Server Components en las páginas de features.
-2. **Un archivo = un módulo completo:** Las páginas incluyen los modales y sub-componentes inline en el mismo archivo.
+2. **Feature folders + contenedor/presentacional:** cada módulo vive en `src/features/<feature>/` (ver "Anatomía de una feature"). `app/dashboard/<x>/page.tsx` solo renderiza el contenedor. No definir modales ni sub-componentes dentro de las páginas; apuntar a archivos de menos de ~250 líneas.
 3. **No hay state management global** (sin Zustand/Redux). Todo el estado es local con `useState`.
-4. **Refresh de datos:** Se usa un `refreshTrigger` counter en `useState` para refrescar sin extraer lógica.
-5. **Dinero:** usar siempre `formatMoney` (muestra `$1.234,50`), `roundMoney` (redondeo a 2 decimales sin drift de float) y `parseMoneyInput` (acepta `1234.5`, `1234,5`, `1.234,50`; `null` si es inválido o negativo) de `@/lib/money`. No usar `toLocaleString` suelto ni `Number(input)` para montos.
+4. **Carga y refresh de datos:** en hooks de la feature (`use-*.ts`) que exponen `reload()`/`refresh()`; los contenedores los llaman tras cada mutación.
+5. **Dinero:** usar siempre `formatMoney` (muestra `$1.234,50`), `roundMoney` (redondeo a 2 decimales sin drift de float) y `parseMoneyInput` (acepta `1234.5`, `1234,5`, `1.234,50`; `null` si es inválido o negativo) de `@/lib/money`. No usar `toLocaleString` suelto ni `Number(input)` para montos. Única excepción: los reportes usan `formatWholeMoney` (pesos enteros).
 6. **Skeleton loaders:** Usar el componente `<Skeleton>` de `@/components/ui/skeleton` mientras cargan los datos.
 7. **Toasts:** Usar `toast.error()` / `toast.success()` de **Sonner** para feedback al usuario.
 8. **Bloques `catch`:** Usar `catch (error: unknown)` (nunca `any`) y obtener el mensaje con `getErrorMessage(error, 'mensaje por defecto')` de `@/lib/errors`.
-9. **Roles:** leer el rol con `useCurrentUser()` (nunca `fetchMe()` en páginas) y proteger páginas solo-admin con `<AdminOnly>`.
+9. **Roles:** leer el rol con `useCurrentUser()` (nunca `fetchMe()` en páginas) y proteger páginas solo-admin con `<AdminOnly>` (ambos de `@/features/auth`).
+10. **Llamadas al backend:** siempre desde el `api.ts` de la feature con `apiJson<T>(path, fallback, { method, body, headers })` (o `apiFetch` si no hay body de respuesta, p. ej. DELETE). No usar `fetch` directo en componentes.
+11. **Modales:** usar siempre `<Modal onClose labelledBy className>` de `@/components/ui/modal` (nunca un overlay `fixed inset-0` propio). Da `role="dialog"`, `aria-modal`, `aria-labelledby`, cierre con Escape y click en el fondo (salvo `dismissible={false}`), foco dentro del diálogo y devolución del foco al cerrar. El título lleva `id={useId()}` y se pasa en `labelledBy`; `className` define el panel; `backdrop="strong"` oscurece más el fondo. Se abre renderizándolo condicionalmente.
+12. **Confirmaciones:** usar `<ConfirmDialog title message confirmLabel cancelLabel destructive loading icon onConfirm onCancel>` (nunca `window.confirm`). Para borrados, `<DeleteConfirmDialog label loading onConfirm onCancel>`. Con `loading` los botones se deshabilitan y no se puede cerrar.
+13. **UI compartida:** listas vacías con `<EmptyState icon message>` y errores de formulario con `<FormError message>` de `@/components/ui`.
 
 ---
 
