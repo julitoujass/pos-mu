@@ -1,11 +1,12 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { FormError } from '@/components/ui/form-error'
 import { Modal } from '@/components/ui/modal'
+import { fetchCategorias, type Categoria } from '@/features/catalogos'
 import { getErrorMessage } from '@/lib/errors'
-import { createProduct, updateProduct } from '../api'
+import { createProduct, setProductCategories, updateProduct } from '../api'
 import type { Product, ProductCreate } from '../types'
 
 type ProductModalProps = {
@@ -24,16 +25,32 @@ export function ProductModal({ mode, initialData, onClose, onSuccess }: ProductM
         descripcion: initialData?.descripcion || ''
     })
 
+    const [categorias, setCategorias] = useState<Categoria[]>([])
+    const [selectedIds, setSelectedIds] = useState<number[]>(() => initialData?.categorias?.map(c => c.id) ?? [])
+
+    useEffect(() => {
+        let cancelled = false
+        fetchCategorias()
+            .then(data => { if (!cancelled) setCategorias(data) })
+            .catch(() => { if (!cancelled) setError('No se pudieron cargar las categorías') })
+        return () => { cancelled = true }
+    }, [])
+
+    function toggleCategory(id: number) {
+        setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
+    }
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
         setLoading(true)
         setError(null)
         try {
-            if (mode === 'edit' && initialData) {
-                await updateProduct(initialData.id, form)
-            } else {
-                await createProduct(form)
-            }
+            const saved = mode === 'edit' && initialData
+                ? await updateProduct(initialData.id, form)
+                : await createProduct(form)
+            const previousIds = initialData?.categorias?.map(c => c.id) ?? []
+            const changed = selectedIds.length !== previousIds.length || selectedIds.some(id => !previousIds.includes(id))
+            if (changed) await setProductCategories(saved.id, selectedIds)
             onSuccess()
         } catch (err: unknown) {
             setError(getErrorMessage(err, 'Ocurrió un error inesperado'))
@@ -73,6 +90,25 @@ export function ProductModal({ mode, initialData, onClose, onSuccess }: ProductM
                         placeholder="Descripción del producto..."
                     />
                 </div>
+
+                {categorias.length > 0 && (
+                    <fieldset>
+                        <legend className="block text-sm font-medium text-foreground mb-1">Categorías</legend>
+                        <div className="max-h-36 overflow-y-auto border border-input rounded-xl p-2 space-y-1">
+                            {categorias.map(cat => (
+                                <label key={cat.id} className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-muted cursor-pointer text-sm text-foreground">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedIds.includes(cat.id)}
+                                        onChange={() => toggleCategory(cat.id)}
+                                        className="accent-brand"
+                                    />
+                                    {cat.nombre}
+                                </label>
+                            ))}
+                        </div>
+                    </fieldset>
+                )}
 
                 <FormError message={error} className="duration-200" />
 

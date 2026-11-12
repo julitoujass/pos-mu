@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { Ban, Loader2, Receipt, X } from 'lucide-react'
+import { Ban, Loader2, Printer, Receipt, Undo2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { FormError } from '@/components/ui/form-error'
 import { Modal } from '@/components/ui/modal'
@@ -9,8 +9,13 @@ import { useCurrentUser } from '@/features/auth'
 import { formatMoney } from '@/lib/money'
 import { useSaleDetail } from '../hooks/use-sale-detail'
 import type { SaleDetail } from '../types'
+import { openTicket } from '../open-ticket'
+import { canRegisterReturn } from '../returns'
 import { CancelSaleDialog } from './cancel-sale-dialog'
+import { CancellationInfo, ItemsTable, Row } from './sale-detail-parts'
+import { SaleReturnsHistory } from './sale-returns-history'
 import { SaleStatusBadge } from './sale-status-badge'
+import { ReturnModal } from './return-modal'
 
 type SaleDetailModalProps = {
     saleId: string
@@ -19,72 +24,13 @@ type SaleDetailModalProps = {
     onChanged: () => void
 }
 
-function Row({ label, value, tone }: { label: string; value: string; tone?: string }) {
-    return (
-        <div className={`flex justify-between text-sm ${tone ?? 'text-muted-foreground'}`}>
-            <span>{label}</span>
-            <span className="font-medium">{value}</span>
-        </div>
-    )
-}
-
-function CancellationInfo({ sale }: { sale: SaleDetail }) {
-    return (
-        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm space-y-1">
-            <p className="font-bold">Venta anulada</p>
-            {sale.motivo_anulacion && <p>Motivo: {sale.motivo_anulacion}</p>}
-            <p>
-                {sale.anulada_at && `${new Date(sale.anulada_at).toLocaleString('es-AR')}`}
-                {sale.anulada_por && ` por ${sale.anulada_por.nombre}`}
-            </p>
-        </div>
-    )
-}
-
-function ItemsTable({ sale, isAdmin }: { sale: SaleDetail; isAdmin: boolean }) {
-    return (
-        <div className="overflow-x-auto border border-border rounded-xl">
-            <table className="w-full text-sm text-left">
-                <thead className="bg-muted text-muted-foreground text-xs uppercase tracking-wider">
-                    <tr>
-                        <th className="p-3">Producto</th>
-                        <th className="p-3 text-center">Cant.</th>
-                        <th className="p-3 text-right">Precio</th>
-                        {isAdmin && <th className="p-3 text-right">Costo</th>}
-                        <th className="p-3 text-right">Subtotal</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                    {sale.items.map(item => (
-                        <tr key={item.variante_id}>
-                            <td className="p-3">
-                                <p className="font-medium text-foreground">{item.producto_nombre}</p>
-                                <p className="text-xs text-muted-foreground">
-                                    {[item.sku, item.talle, item.color].filter(Boolean).join(' · ') || '-'}
-                                </p>
-                            </td>
-                            <td className="p-3 text-center text-foreground">{item.cantidad}</td>
-                            <td className="p-3 text-right text-muted-foreground">{formatMoney(item.precio_unitario)}</td>
-                            {isAdmin && (
-                                <td className="p-3 text-right text-muted-foreground">
-                                    {item.costo_unitario != null ? formatMoney(item.costo_unitario) : '-'}
-                                </td>
-                            )}
-                            <td className="p-3 text-right font-medium text-foreground">{formatMoney(item.subtotal)}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    )
-}
-
 /** Sale detail: header, items, discount/surcharge breakdown and (admin) cancellation. */
 export function SaleDetailModal({ saleId, onClose, onChanged }: SaleDetailModalProps) {
     const titleId = useId()
     const { isAdmin } = useCurrentUser()
     const { sale, setSale, loading, error } = useSaleDetail(saleId)
     const [cancelling, setCancelling] = useState(false)
+    const [returning, setReturning] = useState(false)
 
     function handleCancelled(updated: SaleDetail) {
         setSale(updated)
@@ -92,6 +38,15 @@ export function SaleDetailModal({ saleId, onClose, onChanged }: SaleDetailModalP
         toast.success('Venta anulada')
         onChanged()
     }
+
+    function handleReturned(updated: SaleDetail) {
+        setSale(updated)
+        setReturning(false)
+        toast.success('Devolución registrada')
+        onChanged()
+    }
+
+    const hasReturns = (sale?.devoluciones?.length ?? 0) > 0
 
     return (
         <>
@@ -153,6 +108,8 @@ export function SaleDetailModal({ saleId, onClose, onChanged }: SaleDetailModalP
 
                             <ItemsTable sale={sale} isAdmin={isAdmin} />
 
+                            <SaleReturnsHistory sale={sale} />
+
                             <div className="space-y-1 ml-auto max-w-xs">
                                 <Row label="Subtotal" value={formatMoney(sale.subtotal)} />
                                 {sale.descuento_aplicado > 0 && (
@@ -160,6 +117,9 @@ export function SaleDetailModal({ saleId, onClose, onChanged }: SaleDetailModalP
                                 )}
                                 {sale.recargo_aplicado > 0 && (
                                     <Row label="Recargo" value={`+${formatMoney(sale.recargo_aplicado)}`} />
+                                )}
+                                {(sale.total_devuelto ?? 0) > 0 && (
+                                    <Row label="Devuelto" value={`-${formatMoney(sale.total_devuelto ?? 0)}`} tone="text-amber-600 dark:text-amber-400" />
                                 )}
                                 <div className="flex justify-between text-lg font-bold text-foreground pt-1 border-t border-border">
                                     <span>Total</span>
@@ -173,18 +133,40 @@ export function SaleDetailModal({ saleId, onClose, onChanged }: SaleDetailModalP
                     )}
                 </div>
 
-                {isAdmin && sale?.estado === 'completada' && (
-                    <div className="p-4 border-t border-border flex justify-end">
+                {sale && (
+                    <div className="p-4 border-t border-border flex flex-wrap justify-end gap-3">
                         <button
-                            onClick={() => setCancelling(true)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-destructive bg-destructive/10 hover:bg-destructive/20 font-medium transition-colors"
+                            onClick={() => openTicket(sale.id)}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-foreground bg-muted hover:bg-muted/70 font-medium transition-colors"
                         >
-                            <Ban size={16} />
-                            Anular venta
+                            <Printer size={16} />
+                            Imprimir ticket
                         </button>
+                        {isAdmin && canRegisterReturn(sale) && (
+                            <button
+                                onClick={() => setReturning(true)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl text-brand bg-brand/10 hover:bg-brand/20 font-medium transition-colors"
+                            >
+                                <Undo2 size={16} />
+                                Registrar devolución
+                            </button>
+                        )}
+                        {isAdmin && sale.estado === 'completada' && !hasReturns && (
+                            <button
+                                onClick={() => setCancelling(true)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-xl text-destructive bg-destructive/10 hover:bg-destructive/20 font-medium transition-colors"
+                            >
+                                <Ban size={16} />
+                                Anular venta
+                            </button>
+                        )}
                     </div>
                 )}
             </Modal>
+
+            {returning && sale && (
+                <ReturnModal sale={sale} onReturned={handleReturned} onClose={() => setReturning(false)} />
+            )}
 
             {cancelling && (
                 <CancelSaleDialog

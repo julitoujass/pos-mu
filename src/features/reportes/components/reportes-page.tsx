@@ -6,6 +6,7 @@ import { AdminOnly } from '@/features/auth'
 import { DEFAULT_PRESET, PRESETS } from '../date-presets'
 import { useReportes } from '../hooks/use-reportes'
 import { CashReportTable } from './cash-report-table'
+import { ExportButtons } from './export-buttons'
 import { DateRangeSelector } from './date-range-selector'
 import { KpiCards } from './kpi-cards'
 import { ReportesSkeleton } from './report-states'
@@ -76,6 +77,13 @@ function ReportesContent() {
             {loading ? <ReportesSkeleton /> : (
                 <>
                     <KpiCards ventas={ventas} cajas={cajas} />
+                    <ExportButtons
+                        ventas={ventas}
+                        topProductos={topProductos}
+                        cajas={cajas}
+                        fechaInicio={fechaInicio}
+                        fechaFin={fechaFin}
+                    />
                     <SalesByDayChart ventas={ventas} />
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <TopProducts productos={topProductos} />

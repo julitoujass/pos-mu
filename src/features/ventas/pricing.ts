@@ -1,8 +1,8 @@
 import { parseMoneyInput, roundMoney } from '@/lib/money'
 import type { AdjustmentType, SaleAdjustment } from './types'
 
-/** Maximum discount (as % of the subtotal) an employee can apply. */
-export const EMPLOYEE_MAX_DISCOUNT_PERCENT = 10
+/** Employee discount limit (%) used until the business settings are loaded. */
+export const DEFAULT_EMPLOYEE_MAX_DISCOUNT_PERCENT = 10
 
 export type SaleTotals = {
     subtotal: number
@@ -41,11 +41,15 @@ export function computeSaleTotals(
     }
 }
 
-/** True when an employee's discount is above the allowed share of the subtotal. */
-export function exceedsEmployeeDiscountLimit(subtotal: number, descuento?: SaleAdjustment): boolean {
+/** True when an employee's discount is above `maxPercent` of the subtotal (the configured limit). */
+export function exceedsEmployeeDiscountLimit(
+    subtotal: number,
+    descuento: SaleAdjustment | undefined,
+    maxPercent: number,
+): boolean {
     if (!descuento) return false
     const raw = descuento.tipo === 'porcentaje' ? (subtotal * descuento.valor) / 100 : descuento.valor
-    return roundMoney(raw) > roundMoney((subtotal * EMPLOYEE_MAX_DISCOUNT_PERCENT) / 100)
+    return roundMoney(raw) > roundMoney((subtotal * maxPercent) / 100)
 }
 
 export type ParsedAdjustment = { adjustment?: SaleAdjustment; error?: string }

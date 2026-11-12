@@ -4,17 +4,26 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useCurrentUser } from '@/features/auth'
 import { fetchClients, type Client } from '@/features/clientes'
+import { useBusinessSettings } from '@/features/configuracion'
 import { fetchProducts } from '@/features/productos'
 import { getErrorMessage } from '@/lib/errors'
 import { formatMoney } from '@/lib/money'
 import { processSale } from '../api'
+import { openTicket } from '../open-ticket'
 import { addVariantToCart, cartItemCount, cartTotal, changeQuantity, findVariant, flattenVariants, type CartResult } from '../cart'
-import { computeSaleTotals, exceedsEmployeeDiscountLimit, parseAdjustment } from '../pricing'
+import {
+    computeSaleTotals,
+    DEFAULT_EMPLOYEE_MAX_DISCOUNT_PERCENT,
+    exceedsEmployeeDiscountLimit,
+    parseAdjustment,
+} from '../pricing'
 import type { AdjustmentType, CartItem, PaymentMethod, SaleCreate, SaleResponse, SearchableVariant } from '../types'
 
 /** State and actions of the POS screen: catalog lookup, cart and checkout. */
 export function useNewSale() {
     const { isAdmin } = useCurrentUser()
+    const { settings } = useBusinessSettings()
+    const maxDiscountPercent = settings?.descuento_max_empleado ?? DEFAULT_EMPLOYEE_MAX_DISCOUNT_PERCENT
 
     // Data
     const [searchableVariants, setSearchableVariants] = useState<SearchableVariant[]>([])
@@ -114,7 +123,7 @@ export function useNewSale() {
     const surcharge = parseAdjustment(surchargeType, surchargeInput)
     const totals = computeSaleTotals(subtotal, discount.adjustment, surcharge.adjustment)
     // The server is authoritative; this only avoids a request that is sure to be rejected.
-    const discountOverLimit = !isAdmin && exceedsEmployeeDiscountLimit(subtotal, discount.adjustment)
+    const discountOverLimit = !isAdmin && exceedsEmployeeDiscountLimit(subtotal, discount.adjustment, maxDiscountPercent)
     const adjustmentsValid = !discount.error && !surcharge.error && !discountOverLimit
 
     async function checkout() {
@@ -155,7 +164,9 @@ export function useNewSale() {
         // The sale is registered from here on: never report anything below as a sale error.
         idempotencyKeyRef.current = null
         const successText = `Venta registrada por ${formatMoney(sale.total)}`
-        toast.success(successText)
+        toast.success(successText, {
+            action: { label: 'Imprimir ticket', onClick: () => openTicket(sale.id) },
+        })
         setSuccessMsg(successText)
         setCart([])
         setSkuInput('')
@@ -185,6 +196,7 @@ export function useNewSale() {
         totals,
         adjustments: {
             isAdmin,
+            maxDiscountPercent,
             discountType,
             discountInput,
             discountError: discount.error ?? null,

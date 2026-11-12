@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { getErrorMessage } from '@/lib/errors'
-import { fetchRoles, fetchUsers, updateUserActive, updateUserRole } from '../api'
-import type { RoleResponse, UsuarioResponse } from '../types'
+import { createUser, fetchRoles, fetchUsers, updateUserActive, updateUserRole } from '../api'
+import type { RoleResponse, UsuarioCreate, UsuarioResponse } from '../types'
 
 /**
  * Loads users and roles and exposes the two admin mutations. Mutations are
@@ -63,5 +63,12 @@ export function useUsers() {
         }
     }
 
-    return { users, roles, loading, pendingId, changeRole, changeActive }
+    /** Throws on failure so the creation form can show the backend detail. */
+    async function addUser(data: UsuarioCreate): Promise<UsuarioResponse> {
+        const created = await createUser(data)
+        setUsers(prev => [created, ...prev])
+        return created
+    }
+
+    return { users, roles, loading, pendingId, changeRole, changeActive, addUser }
 }

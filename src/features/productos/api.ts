@@ -1,5 +1,6 @@
 import { apiFetch, apiJson } from '@/lib/http';
 import type {
+    LowStockResponse,
     Product,
     ProductCreate,
     ProductUpdate,
@@ -23,6 +24,14 @@ export function createProduct(data: ProductCreate): Promise<Product> {
 
 export function updateProduct(id: string, data: ProductUpdate): Promise<Product> {
     return apiJson(`/productos/${id}`, 'Failed to update product', { method: 'PATCH', body: data });
+}
+
+/** Admin only. Replaces the categories of a product. */
+export function setProductCategories(id: string, categoriaIds: number[]): Promise<Product> {
+    return apiJson(`/productos/${id}/categorias`, 'Failed to update product categories', {
+        method: 'PUT',
+        body: { categoria_ids: categoriaIds },
+    });
 }
 
 export async function deleteProduct(id: string): Promise<void> {
@@ -56,4 +65,9 @@ export function fetchVariantMovements(
         `/productos/variante/${variantId}/movimientos?limit=${limit}&offset=${offset}`,
         'Failed to fetch stock movements',
     );
+}
+
+/** Variants at or below their minimum stock. Readable by any user. */
+export function fetchLowStock(): Promise<LowStockResponse> {
+    return apiJson('/productos/stock-bajo', 'Failed to fetch low stock');
 }

@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { UserCog } from 'lucide-react'
+import { UserCog, UserPlus } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AdminOnly, useCurrentUser } from '@/features/auth'
 import { useUsers } from '../hooks/use-users'
 import type { UsuarioResponse } from '../types'
+import { CreateUserModal } from './create-user-modal'
 import { UsersTable } from './users-table'
 
 type PendingConfirmation = {
@@ -29,8 +30,9 @@ function fullNameOf(user: UsuarioResponse) {
 
 function UsuariosContent() {
     const { user: currentUser } = useCurrentUser()
-    const { users, roles, loading, pendingId, changeRole, changeActive } = useUsers()
+    const { users, roles, loading, pendingId, changeRole, changeActive, addUser } = useUsers()
     const [confirmation, setConfirmation] = useState<PendingConfirmation | null>(null)
+    const [creating, setCreating] = useState(false)
 
     function handleRoleChange(user: UsuarioResponse, targetRoleId: number) {
         const newRole = roles.find(r => r.id === targetRoleId)
@@ -79,6 +81,13 @@ function UsuariosContent() {
                     </h1>
                     <p className="text-muted-foreground">Administra los roles y accesos del equipo.</p>
                 </div>
+                <button
+                    onClick={() => setCreating(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-brand text-white rounded-xl font-medium hover:bg-brand-hover transition-colors shadow-lg shadow-brand/20 self-start sm:self-auto"
+                >
+                    <UserPlus size={20} />
+                    Nuevo usuario
+                </button>
             </div>
 
             <UsersTable
@@ -89,6 +98,10 @@ function UsuariosContent() {
                 onRoleChange={handleRoleChange}
                 onActiveToggle={handleActiveToggle}
             />
+
+            {creating && (
+                <CreateUserModal roles={roles} onCreate={addUser} onClose={() => setCreating(false)} />
+            )}
 
             {confirmation && (
                 <ConfirmDialog

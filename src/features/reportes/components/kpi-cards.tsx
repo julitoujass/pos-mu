@@ -1,5 +1,5 @@
 import React from 'react'
-import { ArrowUpRight, Banknote, BarChart2, TrendingUp } from 'lucide-react'
+import { ArrowUpRight, Banknote, BarChart2, TrendingUp, Undo2, Wallet } from 'lucide-react'
 import { formatWholeMoney } from '../format'
 import type { CajaResumenReporte, VentasTotalesReporte } from '../types'
 
@@ -8,6 +8,8 @@ const ACCENT_CLASS = {
     violet: 'bg-violet-500/10 border-violet-500/20',
     emerald: 'bg-emerald-500/10 border-emerald-500/20',
     amber: 'bg-amber-500/10 border-amber-500/20',
+    sky: 'bg-sky-500/10 border-sky-500/20',
+    red: 'bg-red-500/10 border-red-500/20',
 } as const
 
 type KpiCardProps = {
@@ -41,12 +43,24 @@ export function KpiCards({ ventas, cajas }: KpiCardsProps) {
     const diferencia = cajas?.diferencia_total_periodo ?? 0
 
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             <KpiCard
-                label="Ingresos Totales"
+                label="Ingresos Netos"
                 value={formatWholeMoney(ventas?.total_ingresos ?? 0)}
                 icon={<TrendingUp className="w-5 h-5 text-brand" />}
                 accent="brand"
+            />
+            <KpiCard
+                label="Ingresos Brutos"
+                value={formatWholeMoney(ventas?.total_bruto ?? 0)}
+                icon={<Wallet className="w-5 h-5 text-sky-500" />}
+                accent="sky"
+            />
+            <KpiCard
+                label="Devoluciones"
+                value={formatWholeMoney(ventas?.total_devoluciones ?? 0)}
+                icon={<Undo2 className="w-5 h-5 text-red-500" />}
+                accent="red"
             />
             <KpiCard
                 label="Operaciones"

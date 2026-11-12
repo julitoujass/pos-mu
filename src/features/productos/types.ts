@@ -5,7 +5,10 @@ export type Product = {
     marca_id?: number | null;
     created_at?: string | null;
     variantes: Variant[];
+    categorias?: ProductCategory[];
 };
+
+export type ProductCategory = { id: number; nombre: string };
 
 export type ProductCreate = {
     nombre: string;
@@ -75,3 +78,16 @@ export type StockMovement = {
 };
 
 export type StockMovementsPage = { items: StockMovement[]; total: number };
+
+export type LowStockItem = {
+    variante_id: string;
+    producto_id: string;
+    producto_nombre: string;
+    sku: string | null;
+    talle: string | null;
+    color: string | null;
+    stock_actual: number;
+    stock_minimo: number;
+};
+
+export type LowStockResponse = { items: LowStockItem[]; total: number };

@@ -1,20 +1,21 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getErrorMessage } from '@/lib/errors'
 import { fetchProducts } from '../api'
 import type { Product } from '../types'
 
-/** Loads the product catalog (with variants) and exposes a manual reload. */
-export function useProducts() {
+/** Loads the product catalog (with variants), optionally filtered by category, and exposes a manual reload. */
+export function useProducts(categoriaId?: number) {
     const [products, setProducts] = useState<Product[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    async function reload() {
+    const reload = useCallback(async () => {
         try {
             setLoading(true)
-            const data = await fetchProducts()
+            setError(null)
+            const data = await fetchProducts(categoriaId)
             setProducts(data)
         } catch (err: unknown) {
             const msg = getErrorMessage(err, 'Error desconocido')
@@ -23,11 +24,11 @@ export function useProducts() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [categoriaId])
 
     useEffect(() => {
         reload()
-    }, [])
+    }, [reload])
 
     return { products, loading, error, reload }
 }

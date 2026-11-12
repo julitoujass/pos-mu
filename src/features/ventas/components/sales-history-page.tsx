@@ -5,6 +5,7 @@ import { AlertCircle, ChevronLeft, ChevronRight, Receipt } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { HISTORY_PAGE_SIZE, useSalesHistory } from '../hooks/use-sales-history'
+import { ExportSalesButton } from './export-sales-button'
 import { SaleDetailModal } from './sale-detail-modal'
 import { SalesHistoryFilters } from './sales-history-filters'
 import { SalesHistoryTable } from './sales-history-table'
@@ -19,9 +20,12 @@ export function SalesHistoryPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold text-foreground">Historial de Ventas</h1>
-                <p className="text-muted-foreground">Consultá las ventas registradas y sus detalles</p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-foreground">Historial de Ventas</h1>
+                    <p className="text-muted-foreground">Consultá las ventas registradas y sus detalles</p>
+                </div>
+                <ExportSalesButton filters={history.filters} />
             </div>
 
             <SalesHistoryFilters filters={history.filters} onChange={history.setFilters} />

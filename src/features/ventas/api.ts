@@ -1,5 +1,5 @@
 import { apiJson, toQueryString } from '@/lib/http';
-import type { SaleCreate, SaleDetail, SaleResponse, SalesFilters, SalesPage } from './types';
+import type { SaleCreate, SaleDetail, SaleReturnCreate, SaleResponse, SalesFilters, SalesPage } from './types';
 
 export function fetchSalesToday(): Promise<SaleResponse[]> {
     return apiJson('/ventas/hoy', 'Failed to fetch sales');
@@ -37,5 +37,13 @@ export function cancelSale(id: string, motivo: string): Promise<SaleDetail> {
     return apiJson(`/ventas/${id}/anular`, 'Failed to cancel sale', {
         method: 'POST',
         body: { motivo },
+    });
+}
+
+/** Admin only. Registers a partial return; returns the updated sale detail. */
+export function createReturn(id: string, data: SaleReturnCreate): Promise<SaleDetail> {
+    return apiJson(`/ventas/${id}/devoluciones`, 'Failed to register return', {
+        method: 'POST',
+        body: data,
     });
 }

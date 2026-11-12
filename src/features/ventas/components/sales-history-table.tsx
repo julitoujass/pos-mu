@@ -35,6 +35,11 @@ export function SalesHistoryTable({ sales, onViewDetail }: SalesHistoryTableProp
                                 <td className="p-4 text-muted-foreground">{sale.metodo_pago}</td>
                                 <td className={`p-4 text-right font-medium text-foreground ${sale.estado === 'anulada' ? 'line-through' : ''}`}>
                                     {formatMoney(sale.total)}
+                                    {(sale.total_devuelto ?? 0) > 0 && (
+                                        <span className="block text-xs font-normal text-amber-600 dark:text-amber-400 no-underline">
+                                            Devuelto {formatMoney(sale.total_devuelto ?? 0)}
+                                        </span>
+                                    )}
                                 </td>
                                 <td className="p-4"><SaleStatusBadge status={sale.estado} /></td>
                                 <td className="p-4 text-right">

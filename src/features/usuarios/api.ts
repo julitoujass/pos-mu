@@ -1,5 +1,5 @@
 import { apiJson } from '@/lib/http';
-import type { RoleResponse, UsuarioResponse } from './types';
+import type { RoleResponse, UsuarioCreate, UsuarioResponse } from './types';
 
 export function fetchUsers(): Promise<UsuarioResponse[]> {
     return apiJson('/usuarios/', 'Failed to fetch users');
@@ -21,4 +21,9 @@ export function updateUserActive(id: string, activo: boolean): Promise<UsuarioRe
         method: 'PATCH',
         body: { activo },
     });
+}
+
+/** Admin only. Creates the account (email + temporary password) with a role. */
+export function createUser(data: UsuarioCreate): Promise<UsuarioResponse> {
+    return apiJson('/usuarios/', 'Failed to create user', { method: 'POST', body: data });
 }

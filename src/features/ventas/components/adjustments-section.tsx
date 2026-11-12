@@ -1,9 +1,11 @@
 import { formatMoney } from '@/lib/money'
-import { EMPLOYEE_MAX_DISCOUNT_PERCENT, type SaleTotals } from '../pricing'
+import type { SaleTotals } from '../pricing'
 import type { AdjustmentType } from '../types'
 
 export type AdjustmentsState = {
     isAdmin: boolean
+    /** Employee discount limit (%) from the business settings. */
+    maxDiscountPercent: number
     discountType: AdjustmentType
     discountInput: string
     discountError: string | null
@@ -84,14 +86,14 @@ type AdjustmentsSectionProps = {
 export function AdjustmentsSection({ state, totals }: AdjustmentsSectionProps) {
     const discountError = state.discountError
         ?? (state.discountOverLimit
-            ? `El descuento máximo permitido es ${EMPLOYEE_MAX_DISCOUNT_PERCENT}%`
+            ? `El descuento máximo permitido es ${state.maxDiscountPercent}%`
             : null)
 
     return (
         <div className="space-y-3">
             <AdjustmentField
                 label="Descuento"
-                hint={state.isAdmin ? undefined : `máx. ${EMPLOYEE_MAX_DISCOUNT_PERCENT}%`}
+                hint={state.isAdmin ? undefined : `máx. ${state.maxDiscountPercent}%`}
                 type={state.discountType}
                 value={state.discountInput}
                 error={discountError}

@@ -40,15 +40,25 @@ describe('computeSaleTotals', () => {
 })
 
 describe('exceedsEmployeeDiscountLimit', () => {
-    it('allows no discount and exactly 10%', () => {
-        expect(exceedsEmployeeDiscountLimit(1000)).toBe(false)
-        expect(exceedsEmployeeDiscountLimit(1000, { tipo: 'porcentaje', valor: 10 })).toBe(false)
-        expect(exceedsEmployeeDiscountLimit(1000, { tipo: 'monto', valor: 100 })).toBe(false)
+    it('allows no discount and exactly the limit', () => {
+        expect(exceedsEmployeeDiscountLimit(1000, undefined, 10)).toBe(false)
+        expect(exceedsEmployeeDiscountLimit(1000, { tipo: 'porcentaje', valor: 10 }, 10)).toBe(false)
+        expect(exceedsEmployeeDiscountLimit(1000, { tipo: 'monto', valor: 100 }, 10)).toBe(false)
     })
 
-    it('rejects more than 10% as percentage or amount', () => {
-        expect(exceedsEmployeeDiscountLimit(1000, { tipo: 'porcentaje', valor: 10.5 })).toBe(true)
-        expect(exceedsEmployeeDiscountLimit(1000, { tipo: 'monto', valor: 100.01 })).toBe(true)
+    it('rejects more than the limit as percentage or amount', () => {
+        expect(exceedsEmployeeDiscountLimit(1000, { tipo: 'porcentaje', valor: 10.5 }, 10)).toBe(true)
+        expect(exceedsEmployeeDiscountLimit(1000, { tipo: 'monto', valor: 100.01 }, 10)).toBe(true)
+    })
+
+    it('uses the configured limit instead of a fixed 10%', () => {
+        expect(exceedsEmployeeDiscountLimit(1000, { tipo: 'porcentaje', valor: 15 }, 20)).toBe(false)
+        expect(exceedsEmployeeDiscountLimit(1000, { tipo: 'porcentaje', valor: 15 }, 5)).toBe(true)
+    })
+
+    it('rejects any discount when the limit is 0', () => {
+        expect(exceedsEmployeeDiscountLimit(1000, { tipo: 'monto', valor: 1 }, 0)).toBe(true)
+        expect(exceedsEmployeeDiscountLimit(1000, undefined, 0)).toBe(false)
     })
 })
 

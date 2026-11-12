@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertCircle, Package, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { DeleteConfirmDialog } from '@/components/ui/delete-confirm-dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCurrentUser } from '@/features/auth'
+import { fetchCategorias, type Categoria } from '@/features/catalogos'
 import { getErrorMessage } from '@/lib/errors'
 import { deleteProduct, deleteVariant } from '../api'
 import { useProducts } from '../hooks/use-products'
@@ -23,7 +24,9 @@ type DeleteTarget = { type: 'product'; item: Product } | { type: 'variant'; item
 
 export function ProductosPage() {
     const { isAdmin } = useCurrentUser()
-    const { products, loading, error, reload } = useProducts()
+    const [categoriaId, setCategoriaId] = useState<number | undefined>(undefined)
+    const [categorias, setCategorias] = useState<Categoria[]>([])
+    const { products, loading, error, reload } = useProducts(categoriaId)
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
 
@@ -33,6 +36,11 @@ export function ProductosPage() {
     const [movementsVariant, setMovementsVariant] = useState<Variant | null>(null)
     const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
     const [deleting, setDeleting] = useState(false)
+
+    useEffect(() => {
+        // The filter is optional: without categories the page still works.
+        fetchCategorias().then(setCategorias).catch(() => setCategorias([]))
+    }, [])
 
     async function handleConfirmDelete() {
         if (!deleteTarget) return
@@ -79,7 +87,8 @@ export function ProductosPage() {
                 )}
             </div>
 
-            <div className="relative">
+            <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                 <input
                     type="text"
@@ -88,6 +97,20 @@ export function ProductosPage() {
                     placeholder="Buscar por nombre o SKU..."
                     className="w-full pl-12 pr-4 py-3 rounded-xl border border-input bg-card text-foreground focus:ring-2 focus:ring-brand focus:border-transparent transition-all"
                 />
+            </div>
+            {categorias.length > 0 && (
+                <select
+                    aria-label="Filtrar por categoría"
+                    value={categoriaId ?? ''}
+                    onChange={e => setCategoriaId(e.target.value ? Number(e.target.value) : undefined)}
+                    className="px-4 py-3 rounded-xl border border-input bg-card text-foreground focus:ring-2 focus:ring-brand focus:border-transparent"
+                >
+                    <option value="">Todas las categorías</option>
+                    {categorias.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.nombre}</option>
+                    ))}
+                </select>
+            )}
             </div>
 
             {error && (

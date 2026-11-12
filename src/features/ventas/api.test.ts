@@ -12,7 +12,7 @@ vi.mock('@/lib/supabase/client', () => ({
     }),
 }))
 
-import { cancelSale, fetchSaleDetail, fetchSales, processSale } from './api'
+import { cancelSale, createReturn, fetchSaleDetail, fetchSales, processSale } from './api'
 
 const fetchMock = vi.fn()
 
@@ -151,5 +151,26 @@ describe('cancelSale', () => {
     it('throws the backend detail (409 already cancelled)', async () => {
         fetchMock.mockResolvedValue(jsonResponse({ detail: 'La venta ya está anulada' }, 409))
         await expect(cancelSale('s1', 'x')).rejects.toThrow('La venta ya está anulada')
+    })
+})
+
+describe('createReturn', () => {
+    it('posts motivo and items to the devoluciones endpoint', async () => {
+        fetchMock.mockResolvedValue(jsonResponse({ id: 's1', devoluciones: [], items: [] }))
+        await createReturn('s1', { motivo: 'Talle chico', items: [{ variante_id: 'v1', cantidad: 1 }] })
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/api/python/ventas/s1/devoluciones')
+        expect(init.method).toBe('POST')
+        expect(JSON.parse(init.body)).toEqual({
+            motivo: 'Talle chico',
+            items: [{ variante_id: 'v1', cantidad: 1 }],
+        })
+    })
+
+    it('throws the backend detail (400 without open register)', async () => {
+        fetchMock.mockResolvedValue(
+            jsonResponse({ detail: 'Abrí la caja para registrar la devolución en efectivo' }, 400),
+        )
+        await expect(createReturn('s1', { motivo: 'x', items: [] })).rejects.toThrow('Abrí la caja')
     })
 })

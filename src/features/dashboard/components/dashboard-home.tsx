@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Activity, AlertCircle, DollarSign, ShoppingCart, Users } from 'lucide-react'
+import { Activity, AlertCircle, AlertTriangle, DollarSign, ShoppingCart, Users } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatMoney } from '@/lib/money'
 import { useDashboardSummary } from '../hooks/use-dashboard-summary'
@@ -9,7 +10,7 @@ import { useDashboardSummary } from '../hooks/use-dashboard-summary'
 /** Landing page of the dashboard: KPIs of the day and quick actions. */
 export function DashboardHome() {
     const router = useRouter()
-    const { salesToday, cashStatus, loading, error } = useDashboardSummary()
+    const { salesToday, cashStatus, lowStockCount, loading, error } = useDashboardSummary()
 
     const totalSalesAmount = salesToday.reduce((acc, sale) => acc + sale.total, 0)
     const cashStateColor = cashStatus?.estado === 'abierta' ? 'text-green-600 bg-green-100' : 'text-amber-600 bg-amber-100'
@@ -66,6 +67,25 @@ export function DashboardHome() {
                             </p>
                         </div>
                     </div>
+
+                    <Link
+                        href="/dashboard/stock-bajo"
+                        className="p-6 bg-card rounded-2xl shadow-sm border border-border hover:border-brand/40 transition-colors"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <div className={`p-3 rounded-xl ${lowStockCount ? 'bg-amber-100 text-amber-600' : 'bg-brand/10 text-brand'}`}>
+                                <AlertTriangle className="w-6 h-6" />
+                            </div>
+                            <span className="text-sm font-medium text-muted-foreground">Inventario</span>
+                        </div>
+                        <div>
+                            <p className="text-sm font-medium text-muted-foreground">Stock bajo</p>
+                            <h3 className="text-3xl font-bold text-foreground mt-1">{lowStockCount ?? '-'}</h3>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {lowStockCount === 0 ? 'Todo en orden' : 'variantes bajo el mínimo'}
+                            </p>
+                        </div>
+                    </Link>
 
                     <div className="p-6 bg-gradient-to-br from-brand to-brand-light rounded-2xl shadow-lg text-white">
                         <h3 className="text-lg font-bold mb-4">Acciones Rápidas</h3>

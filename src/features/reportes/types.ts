@@ -1,11 +1,17 @@
 export type VentaDia = {
     fecha: string;
+    /** Net of returns. */
     total: number;
+    bruto: number;
+    devoluciones: number;
     cantidad_ventas: number;
 };
 
 export type VentasTotalesReporte = {
+    /** Net of returns. */
     total_ingresos: number;
+    total_bruto: number;
+    total_devoluciones: number;
     cantidad_operaciones: number;
     ventas_por_dia: VentaDia[];
 };

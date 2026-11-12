@@ -50,6 +50,8 @@ export type SaleListItem = {
     estado: SaleStatus;
     cliente: PersonRef | null;
     usuario: PersonRef | null;
+    /** Total refunded through partial returns (0 or missing when none). */
+    total_devuelto?: number;
 };
 
 export type SalesPage = { items: SaleListItem[]; total: number };
@@ -78,6 +80,29 @@ export type SaleDetailItem = {
     subtotal: number;
     /** Admin only */
     costo_unitario?: number | null;
+    /** Units already returned. */
+    cantidad_devuelta?: number;
+};
+
+export type SaleReturnItem = {
+    variante_id: string;
+    cantidad: number;
+    monto: number;
+};
+
+export type SaleReturn = {
+    id: string;
+    created_at: string;
+    motivo: string;
+    monto: number;
+    metodo_pago: string;
+    usuario: PersonRef | null;
+    items: SaleReturnItem[];
+};
+
+export type SaleReturnCreate = {
+    motivo: string;
+    items: SaleItemCreate[];
 };
 
 export type SaleDetail = SaleListItem & {
@@ -85,6 +110,7 @@ export type SaleDetail = SaleListItem & {
     anulada_at?: string | null;
     anulada_por?: PersonRef | null;
     items: SaleDetailItem[];
+    devoluciones?: SaleReturn[];
     /** Admin only */
     total_costo?: number | null;
 };

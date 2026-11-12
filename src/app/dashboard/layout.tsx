@@ -15,7 +15,9 @@ import {
     Menu,
     X,
     BarChart2,
-    Tags
+    Tags,
+    AlertTriangle,
+    ScrollText,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -28,10 +30,12 @@ const sidebarItems = [
     { name: 'Historial', href: '/dashboard/historial', icon: Receipt },
     { name: 'Caja', href: '/dashboard/caja', icon: Banknote },
     { name: 'Productos', href: '/dashboard/productos', icon: Package },
+    { name: 'Stock bajo', href: '/dashboard/stock-bajo', icon: AlertTriangle },
     { name: 'Catálogos', href: '/dashboard/catalogos', icon: Tags },
     { name: 'Clientes', href: '/dashboard/clientes', icon: Users },
     { name: 'Reportes', href: '/dashboard/reportes', icon: BarChart2, adminOnly: true },
     { name: 'Usuarios', href: '/dashboard/usuarios', icon: Users, adminOnly: true },
+    { name: 'Auditoría', href: '/dashboard/auditoria', icon: ScrollText, adminOnly: true },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -111,13 +115,16 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                             <ThemeToggle />
                         </div>
 
-                        <Link
-                            href="/dashboard/settings"
-                            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                        >
-                            <Settings size={20} />
-                            Configuración
-                        </Link>
+                        {isAdmin && (
+                            <Link
+                                href="/dashboard/settings"
+                                onClick={() => setIsSidebarOpen(false)}
+                                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                            >
+                                <Settings size={20} />
+                                Configuración
+                            </Link>
+                        )}
                         <button
                             onClick={handleSignOut}
                             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
