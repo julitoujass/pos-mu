@@ -32,16 +32,17 @@ describe('reportes CSV columns', () => {
                 fecha: '2026-01-02',
                 sesiones_abiertas: 1,
                 monto_inicial_total: 100,
+                ventas_efectivo: 1700,
                 ingresos: 50,
                 egresos: 20,
-                monto_real_efectivo_total: 130,
+                monto_real_efectivo_total: 1830,
                 diferencia_esperado_vs_real: -0.5,
             }],
             CAJAS_CSV_COLUMNS,
         )
         expect(body(csv)).toEqual([
-            'Fecha;Sesiones;Monto inicial;Ingresos;Egresos;Efectivo real;Diferencia',
-            '2026-01-02;1;100;50;20;130;-0,5',
+            'Fecha;Sesiones;Monto inicial;Ventas en efectivo;Ingresos;Egresos;Efectivo real;Diferencia',
+            '2026-01-02;1;100;1700;50;20;1830;-0,5',
         ])
     })
 })

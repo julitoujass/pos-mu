@@ -21,6 +21,7 @@ export const CAJAS_CSV_COLUMNS: CsvColumn<CajaResumenDiario>[] = [
     { header: 'Fecha', value: d => d.fecha },
     { header: 'Sesiones', value: d => d.sesiones_abiertas },
     { header: 'Monto inicial', value: d => d.monto_inicial_total },
+    { header: 'Ventas en efectivo', value: d => d.ventas_efectivo ?? 0 },
     { header: 'Ingresos', value: d => d.ingresos },
     { header: 'Egresos', value: d => d.egresos },
     { header: 'Efectivo real', value: d => d.monto_real_efectivo_total },

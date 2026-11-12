@@ -29,6 +29,8 @@ export type CajaResumenDiario = {
     fecha: string;
     sesiones_abiertas: number;
     monto_inicial_total: number;
+    /** Cash sales of the day's sessions (cancelled sales excluded). */
+    ventas_efectivo: number;
     ingresos: number;
     egresos: number;
     monto_real_efectivo_total: number;
