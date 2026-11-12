@@ -1,0 +1,104 @@
+'use client'
+
+import { useState } from 'react'
+import { UserCog } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Skeleton } from '@/components/ui/skeleton'
+import { AdminOnly, useCurrentUser } from '@/features/auth'
+import { useUsers } from '../hooks/use-users'
+import type { UsuarioResponse } from '../types'
+import { UsersTable } from './users-table'
+
+type PendingConfirmation = {
+    title: string
+    message?: string
+    run: () => void
+}
+
+export function UsuariosPage() {
+    return (
+        <AdminOnly>
+            <UsuariosContent />
+        </AdminOnly>
+    )
+}
+
+function fullNameOf(user: UsuarioResponse) {
+    return `${user.nombre} ${user.apellido || ''}`.trim()
+}
+
+function UsuariosContent() {
+    const { user: currentUser } = useCurrentUser()
+    const { users, roles, loading, pendingId, changeRole, changeActive } = useUsers()
+    const [confirmation, setConfirmation] = useState<PendingConfirmation | null>(null)
+
+    function handleRoleChange(user: UsuarioResponse, targetRoleId: number) {
+        const newRole = roles.find(r => r.id === targetRoleId)
+        if (!newRole || newRole.id === user.roles?.id) return
+        setConfirmation({
+            title: `¿Cambiar el rol de ${fullNameOf(user)} a ${newRole.nombre}?`,
+            run: () => changeRole(user, targetRoleId),
+        })
+    }
+
+    function handleActiveToggle(user: UsuarioResponse) {
+        const activo = !user.activo
+        const fullName = fullNameOf(user)
+        setConfirmation(
+            activo
+                ? { title: `¿Reactivar a ${fullName}?`, run: () => changeActive(user, activo) }
+                : {
+                    title: `¿Desactivar a ${fullName}?`,
+                    message: 'No va a poder usar el sistema.',
+                    run: () => changeActive(user, activo),
+                },
+        )
+    }
+
+    function handleConfirm() {
+        confirmation?.run()
+        setConfirmation(null)
+    }
+
+    if (loading) {
+        return (
+            <div className="space-y-6">
+                <Skeleton className="h-10 w-48" />
+                <Skeleton className="h-64 w-full rounded-2xl" />
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
+                        <UserCog size={32} className="text-brand" />
+                        Gestión de Usuarios
+                    </h1>
+                    <p className="text-muted-foreground">Administra los roles y accesos del equipo.</p>
+                </div>
+            </div>
+
+            <UsersTable
+                users={users}
+                roles={roles}
+                currentUserId={currentUser?.id}
+                pendingId={pendingId}
+                onRoleChange={handleRoleChange}
+                onActiveToggle={handleActiveToggle}
+            />
+
+            {confirmation && (
+                <ConfirmDialog
+                    title={confirmation.title}
+                    message={confirmation.message}
+                    confirmLabel="Aceptar"
+                    onConfirm={handleConfirm}
+                    onCancel={() => setConfirmation(null)}
+                />
+            )}
+        </div>
+    )
+}

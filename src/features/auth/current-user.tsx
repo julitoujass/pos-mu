@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { fetchMe, type MeResponse } from '@/lib/api'
+import { fetchMe } from './api'
+import type { MeResponse } from './types'
 import { createClient } from '@/lib/supabase/client'
 import { getErrorMessage, isInactiveUserError } from '@/lib/errors'
 

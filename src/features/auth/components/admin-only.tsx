@@ -3,7 +3,7 @@
 import React from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useCurrentUser } from '@/lib/auth/current-user'
+import { useCurrentUser } from '../current-user'
 
 /**
  * Renders children only for admins. Non-admins see an empty state (no redirect).

@@ -19,7 +19,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { CurrentUserProvider, useCurrentUser } from '@/lib/auth/current-user'
+import { CurrentUserProvider, useCurrentUser } from '@/features/auth'
 
 const sidebarItems = [
     { name: 'Panel Principal', href: '/dashboard', icon: LayoutDashboard },
