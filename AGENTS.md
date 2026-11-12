@@ -73,27 +73,39 @@ src/
 │       ├── catalogos/page.tsx     # → <CatalogosPage />   (features/catalogos)
 │       ├── clientes/page.tsx      # → <ClientesPage />    (features/clientes)
 │       ├── reportes/page.tsx      # → <ReportesPage />    (features/reportes, solo admin)
-│       └── usuarios/page.tsx      # → <UsuariosPage />    (features/usuarios, solo admin)
+│       ├── usuarios/page.tsx      # → <UsuariosPage />    (features/usuarios, solo admin)
+│       ├── stock-bajo/page.tsx    # → <LowStockPage />    (features/productos, ambos roles)
+│       ├── auditoria/page.tsx     # → <AuditoriaPage />   (features/auditoria, solo admin)
+│       └── settings/page.tsx      # → <SettingsPage />    (features/configuracion, solo admin)
+│   └── ticket/[id]/page.tsx       # → <TicketPage />      (features/ventas) FUERA del layout del dashboard; exige sesión (ver Autenticación)
 ├── features/
 │   ├── auth/                      # api.ts (fetchMe), types.ts, current-user.tsx (CurrentUserProvider/useCurrentUser),
 │   │                              # components/{admin-only,login-form}.tsx
 │   ├── ventas/                    # api.ts, types.ts, cart.ts (carrito), pricing.ts (descuento/recargo), dates.ts,
 │   │                              # hooks/{use-new-sale,use-sales-history,use-sale-detail}.ts,
 │   │                              # components/{new-sale-page,sku-scanner,cart-table,checkout-panel,adjustments-section,client-selector-modal,
-│   │                              #   sales-history-page,sales-history-filters,sales-history-table,sale-detail-modal,cancel-sale-dialog,sale-status-badge}.tsx
+│   │                              #   sales-history-page,sales-history-filters,sales-history-table,sale-detail-modal,sale-detail-parts,cancel-sale-dialog,
+│   │                              #   return-modal,sale-returns-history,export-sales-button,ticket-page,ticket-view,sale-status-badge}.tsx,
+│   │                              # returns.ts (devoluciones parciales, puro), ticket-format.ts (layout del ticket, puro),
+│   │                              # export.ts (fetchAllSales + columnas CSV), open-ticket.ts
+│   ├── configuracion/             # api.ts (fetchSettings/updateSettings), types.ts, hooks/use-business-settings.ts (cualquier rol),
+│   │                              # components/{settings-page,settings-form}.tsx
+│   ├── auditoria/                 # api.ts, types.ts, hooks/use-audit-log.ts, components/{auditoria-page,audit-filters,audit-detail-modal}.tsx
 │   ├── caja/                      # api.ts, types.ts, hooks/{use-cash-session,use-sessions-history}.ts,
 │   │                              # components/{caja-page,open-register-form,cash-summary-cards,shift-sales-summary,
 │   │                              #   movements-table,close-register-form,movement-modal,sessions-history-modal,session-list}.tsx
 │   ├── productos/                 # api.ts, types.ts, hooks/use-products.ts,
-│   │                              # components/{productos-page,product-card,variants-table,product-modal,variant-modal,stock-adjust-modal}.tsx
+│   │                              # components/{productos-page,product-card,variants-table,product-modal,variant-modal,stock-adjust-modal,
+│   │                              #   stock-movements-modal,low-stock-page}.tsx
 │   ├── catalogos/                 # api.ts, types.ts, hooks/use-catalogos.ts,
 │   │                              # components/{catalogos-page,catalog-list,catalog-form-modal,marca-form-modal,categoria-form-modal}.tsx
 │   ├── clientes/                  # api.ts, types.ts, hooks/use-clients.ts,
 │   │                              # components/{clientes-page,clients-table,client-modal}.tsx
 │   ├── reportes/                  # api.ts, types.ts, format.ts, date-presets.ts, hooks/use-reportes.ts,
-│   │                              # components/{reportes-page,date-range-selector,kpi-cards,sales-by-day-chart,
-│   │                              #   top-products,cash-report-table,report-states}.tsx
-│   ├── usuarios/                  # api.ts, types.ts, hooks/use-users.ts, components/{usuarios-page,users-table}.tsx
+│   │                              # export.ts (columnas CSV), components/{reportes-page,date-range-selector,kpi-cards,sales-by-day-chart,
+│   │                              #   top-products,cash-report-table,report-states,export-buttons}.tsx
+│   ├── usuarios/                  # api.ts, types.ts, validation.ts, hooks/use-users.ts,
+│   │                              # components/{usuarios-page,users-table,create-user-modal}.tsx
 │   └── dashboard/                 # hooks/use-dashboard-summary.ts, components/dashboard-home.tsx (panel principal)
 ├── components/
 │   ├── theme-provider.tsx         # Wrapper de next-themes
@@ -109,7 +121,8 @@ src/
 │   ├── http.ts                    # API_URL, getAuthHeaders, toApiError, apiFetch/apiJson, toQueryString
 │   ├── errors.ts                  # getErrorMessage, getApiErrorDetail, ApiError (con status), isInactiveUserError
 │   ├── money.ts                   # roundMoney / formatMoney / parseMoneyInput
-│   └── supabase/                  # client.ts, server.ts, middleware.ts (updateSession)
+│   ├── csv.ts                     # toCsv (; + BOM UTF-8 + coma decimal es-AR) / downloadCsv
+│   └── supabase/                  # client.ts, server.ts, middleware.ts (updateSession), protected-paths.ts (rutas que exigen sesión)
 ├── test/json-response.ts          # Helper de tests: Response JSON para mockear fetch
 └── proxy.ts                       # Proxy de Next 16 (antes middleware.ts): protege rutas con Supabase
 
@@ -143,6 +156,7 @@ Los tests viven junto al código que prueban (`*.test.ts` / `*.test.tsx`). Los d
 ## Autenticación
 
 - **Proveedor:** Supabase Auth (email/password)
+- **Rutas protegidas:** `isProtectedPath()` (`lib/supabase/protected-paths.ts`) cubre `/dashboard/*` y `/ticket/*`; `updateSession()` redirige a `/` si no hay usuario. El ticket no está bajo el layout del dashboard pero el proxy (matcher global) igualmente lo protege.
 - **Protección de rutas:** El `src/proxy.ts` (convención `proxy` de Next 16, que reemplaza a `middleware.ts`; exporta la función `proxy`) llama a `updateSession()` en cada request (excepto assets estáticos e imágenes). Si no hay sesión válida, el usuario es redirigido al login.
 - **JWT en API calls:** `getAuthHeaders()` en `src/lib/http.ts` obtiene el `access_token` de la sesión activa y lo pone como `Authorization: Bearer`.
 - **Logout:** `supabase.auth.signOut()` desde el sidebar → redirect a `/`.
@@ -204,16 +218,30 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - **Métodos de pago:** Efectivo, Tarjeta, QR (enum fijo, no configurable desde UI).
 - **Cliente:** Selector modal que filtra por nombre, DNI o email. Default es "Consumidor Final" (cliente_id = null).
 - **Precios del lado del servidor:** el front envía solo `{ variante_id, cantidad }` por ítem, el método de pago y el cliente. Los precios y el total los toma el backend de la DB; el total mostrado en pantalla es una estimación (`roundMoney`/`formatMoney`) y el toast de éxito muestra el `total` real devuelto por el servidor.
-- **Descuento y recargo (opcionales):** en el checkout, cada uno con toggle `%` / `$` y un input parseado con `parseMoneyInput` (`AdjustmentsSection`). Se envían como `descuento` / `recargo` `{ tipo: 'porcentaje'|'monto', valor }` solo si están seteados (porcentaje ≤ 100). Reglas (espejo del backend, `pricing.ts`): `descuento = subtotal*valor/100` o `valor`; el recargo porcentual se aplica sobre `subtotal − descuento`; `total = subtotal − descuento + recargo`, redondeado a 2 decimales. `computeSaleTotals` calcula la estimación y `exceedsEmployeeDiscountLimit` valida el tope de 10% para empleados (la UI muestra "máx. 10%" y bloquea el cobro; el backend sigue siendo la autoridad y responde 403 "El descuento máximo permitido para empleados es 10%").
+- **Descuento y recargo (opcionales):** en el checkout, cada uno con toggle `%` / `$` y un input parseado con `parseMoneyInput` (`AdjustmentsSection`). Se envían como `descuento` / `recargo` `{ tipo: 'porcentaje'|'monto', valor }` solo si están seteados (porcentaje ≤ 100). Reglas (espejo del backend, `pricing.ts`): `descuento = subtotal*valor/100` o `valor`; el recargo porcentual se aplica sobre `subtotal − descuento`; `total = subtotal − descuento + recargo`, redondeado a 2 decimales. `computeSaleTotals` calcula la estimación y `exceedsEmployeeDiscountLimit(subtotal, descuento, maxPercent)` valida el tope para empleados: ya no es fijo, viene de `descuento_max_empleado` de la configuración (`useBusinessSettings()`, 10% mientras carga). La UI muestra "máx. N%" y bloquea el cobro; el backend sigue siendo la autoridad y responde 403.
 - **Idempotency-Key:** se genera un `crypto.randomUUID()` por intento de cobro y se envía en el header `Idempotency-Key` (`processSale(data, key)`). Se reutiliza si el usuario reintenta tras un error (el backend devuelve la misma venta, sin duplicar) y se reinicia tras una venta exitosa o al cambiar carrito, método de pago, cliente, descuento o recargo.
 - **Proceso de venta:** Al confirmar, llama a `processSale()` y recarga las variantes para actualizar stock local. Si la recarga falla, se muestra el éxito de la venta más un toast de advertencia aparte (nunca como error de venta). Los errores del backend (400 sin caja abierta, 409 stock insuficiente, 404, 422) se muestran con su `detail` en un toast.
+- **Ticket:** tras cobrar, el toast de éxito incluye la acción "Imprimir ticket" (`openTicket(id)` → `window.open('/ticket/<id>', '_blank')`).
 - **Código (`features/ventas`):** `useNewSale` concentra el estado (carga, carrito, cobro e idempotencia); `cart.ts` y `pricing.ts` tienen la lógica pura (testeada); componentes `SkuScanner`, `CartTable`, `CheckoutPanel`, `AdjustmentsSection`, `ClientSelectorModal`.
 
 ### 2b. `/dashboard/historial` — Historial de Ventas
 - Visible en el sidebar para ambos roles ("Historial", junto a "Nueva Venta"). Código en `features/ventas` (`SalesHistoryPage`).
 - **Filtros:** desde / hasta (por defecto el día de hoy en horario de Argentina, `todayInArgentina()` de `dates.ts`), método de pago y estado. Cambiar un filtro vuelve a la página 1.
 - **Tabla paginada** (50 por página, `limit`/`offset`): fecha y hora, cliente, vendedor, método, total y badge de estado ("Anulada"). "Ver detalle" abre `SaleDetailModal` (cabecera, ítems, desglose de descuento/recargo, info de anulación; costos solo admin).
-- **Anular venta (solo admin):** botón en el detalle de ventas completadas → `CancelSaleDialog` (`ConfirmDialog` con textarea de motivo obligatorio, 1..200 caracteres) → `cancelSale(id, motivo)`; al terminar se actualiza el detalle y se recarga la lista. Los errores del backend (409 ya anulada; 400 "Abrí la caja para registrar la devolución en efectivo") se muestran con su `detail`. Anular una venta en efectivo de una sesión cerrada crea automáticamente un egreso en la caja abierta; las ventas anuladas dejan de contar en el resumen de caja y en reportes.
+- **Anular venta (solo admin):** botón en el detalle de ventas completadas → `CancelSaleDialog` (`ConfirmDialog` con textarea de motivo obligatorio, 1..200 caracteres) → `cancelSale(id, motivo)`; al terminar se actualiza el detalle y se recarga la lista. **Anular no está disponible si la venta tiene devoluciones** (el backend responde 409 MU010 y el botón se oculta). Los errores del backend (409 ya anulada; 400 "Abrí la caja para registrar la devolución en efectivo") se muestran con su `detail`. Anular una venta en efectivo de una sesión cerrada crea automáticamente un egreso en la caja abierta; las ventas anuladas dejan de contar en el resumen de caja y en reportes.
+
+### 2c. Ticket no fiscal — `/ticket/[id]`
+- Ruta fuera del layout del dashboard (`app/ticket/[id]/page.tsx` → `TicketPage`). Carga el detalle de la venta y la configuración del negocio, renderiza un ticket de 80 mm (`TicketView`: `<pre>` monospace de 40 columnas armado con los helpers puros de `ticket-format.ts`) y llama a `window.print()` una sola vez al cargar. Incluye encabezado (nombre, CUIT, dirección, teléfono), fecha, ítems (cant × precio), subtotal/descuento/recargo/total, método de pago, id corto de venta, `pie_ticket` y "Comprobante no válido como factura".
+- CSS de impresión inline en `TicketPage`: `@page { size: 80mm auto; margin: 0 }`, ancho de contenido 72 mm.
+- Se abre desde el toast de venta y desde el botón "Imprimir ticket" del detalle de venta.
+- Protegido por `src/proxy.ts` (`isProtectedPath`): sin sesión redirige a `/`.
+
+### 2d. Devoluciones parciales (solo admin)
+- `SaleDetailModal` muestra el historial de devoluciones (`SaleReturnsHistory`: fecha, usuario, motivo, monto, ítems, método de reintegro), la columna de cantidad con "N devueltas" y la fila "Devuelto".
+- Botón "Registrar devolución" (oculto si la venta está anulada o no queda nada por devolver: `canRegisterReturn`) → `ReturnModal`: stepper por ítem limitado a `cantidad - cantidad_devuelta` (`remainingQuantity`), motivo obligatorio (1..200) y reintegro estimado (`estimateRefund(items, factor)`, `factor = total/subtotal` con `refundFactor`; el servidor es autoritativo) → `createReturn(id, { motivo, items })` → actualiza el detalle y recarga la lista.
+- El reintegro es proporcional a lo pagado (descuento/recargo incluidos); si es en efectivo el backend crea un egreso en la caja abierta (400 "Abrí la caja para registrar la devolución en efectivo" si no hay). Errores 409 (MU008 venta anulada, MU009 cantidad superior a lo restante) se muestran con su `detail`.
+- La tabla del historial muestra "Devuelto $X" bajo el total cuando `total_devuelto > 0`.
+- **Exportar CSV:** `ExportSalesButton` descarga todas las ventas de los filtros actuales (`fetchAllSales`, 200 por página) con `SALES_CSV_COLUMNS`.
 
 ### 3. `/dashboard/caja` — Gestión de Caja
 - Maneja sesiones de caja (turnos).
@@ -236,6 +264,7 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 - **Movimientos de stock / kardex (solo admin):** acción "Movimientos" en la tabla de variantes → `StockMovementsModal` (paginado de a 50, `fetchVariantMovements()` → `GET /productos/variante/{id}/movimientos`): fecha, tipo (badge venta / anulación / ajuste), cantidad con signo y color, stock resultante, usuario, motivo y id corto de la venta.
 - **Borrado (solo admin):** `deleteProduct()` / `deleteVariant()`. El backend responde 409 si la variante tiene ventas asociadas.
 - Búsqueda local client-side por nombre o SKU.
+- **Categorías (N:M):** el producto trae `categorias: [{id, nombre}]` y se muestran como chips en la tarjeta (ambos roles). `ProductModal` (admin) tiene una lista de checkboxes (de `fetchCategorias`) y guarda con `setProductCategories` (`PUT /productos/{id}/categorias`) tras crear/editar si cambió la selección. La página tiene un filtro por categoría (`useProducts(categoriaId)` → `?categoria_id=`).
 - **Código (`features/productos`):** `useProducts`; componentes `ProductCard`, `VariantsTable`, `ProductModal`, `VariantModal`, `StockAdjustModal`, `StockMovementsModal` (hook `useVariantMovements`); el borrado usa `DeleteConfirmDialog`.
 
 ### 5. `/dashboard/catalogos` — Marcas y Categorías
@@ -254,14 +283,26 @@ BACKEND_API_URL=http://127.0.0.1:8000/api/v1
 ### 7. `/dashboard/reportes` — Reportes (solo admin)
 - Filtro por rango de fechas (`fecha_inicio`, `fecha_fin`). Los montos se muestran en pesos enteros con `formatWholeMoney` (`features/reportes/format.ts`).
 - Llama a `fetchReporteVentas()`, `fetchReporteProductosTop()` y `fetchReporteCajas()`.
+- **Neto vs devoluciones:** `total_ingresos` es neto; hay KPIs de ingresos netos, brutos y devoluciones, y el gráfico "Ventas por Día" muestra barras pareadas neto / devoluciones (`ventas_por_dia[].total|bruto|devoluciones`).
+- **Exportar CSV:** `ExportButtons` descarga ventas por día, productos top y cajas (`export.ts`) con `toCsv` (`;`, BOM UTF-8, coma decimal es-AR) y `downloadCsv` de `lib/csv.ts`.
 - ⚠️ Los errores de `fetchReporteProductosTop()` se tragan con `.catch(() => [])`: si el endpoint falla, la tabla aparece vacía sin aviso.
 
 ### 8. `/dashboard/usuarios` — Usuarios (solo admin)
+- **Nuevo usuario:** botón → `CreateUserModal` (email, contraseña temporal 8..72 con mostrar/ocultar, nombre, apellido, rol) validado con `validateNewUser` → `createUser` (`POST /usuarios/`); se agrega a la lista. Muestra el `detail` del backend en 409 ("Ya existe un usuario con ese email") y 400 (rol inexistente).
 - Lista usuarios (`fetchUsers()`) y roles disponibles (`fetchRoles()`).
 - Un dropdown por fila cambia el rol con `updateUserRole(id, rol_id)` → `PATCH /usuarios/{id}/rol`.
 - Un toggle Activo/Inactivo por fila llama a `updateUserActive(id, activo)` → `PATCH /usuarios/{id}/activo`.
 - Ambos cambios piden confirmación (`ConfirmDialog`), **no son optimistas** (el estado local se actualiza con la respuesta del backend; ante error el control vuelve solo) y muestran el `detail` del backend en el toast (409: "No podés quitarte el rol de administrador" / "Debe quedar al menos un administrador activo"; 400: rol inexistente).
 - La fila del usuario actual (`useCurrentUser().user.id`) tiene rol y toggle deshabilitados.
+
+### 9. `/dashboard/stock-bajo` — Stock bajo (ambos roles)
+- `LowStockPage` (`features/productos`) lista las variantes en o bajo su mínimo (`fetchLowStock()` → `GET /productos/stock-bajo`). El panel principal tiene una tarjeta "Stock bajo" con el conteo que enlaza a esta página; el sidebar tiene el ítem "Stock bajo".
+
+### 10. `/dashboard/settings` — Configuración (solo admin)
+- `SettingsPage` (`features/configuracion`, envuelta en `<AdminOnly>`; el link del sidebar es solo admin): datos del negocio (nombre, CUIT, dirección, teléfono, email, pie del ticket) y `descuento_max_empleado` (0..100). Guarda con `PATCH /configuracion` (parcial) y muestra quién modificó por última vez. `useBusinessSettings()` (cualquier rol) lo usan el checkout (tope de descuento) y el ticket.
+
+### 11. `/dashboard/auditoria` — Auditoría (solo admin)
+- `AuditoriaPage` (`features/auditoria`): filtros desde/hasta/evento/entidad, tabla paginada (50 por página) y "Ver detalle" (`AuditDetailModal`) con el JSON formateado de `payload_enviado` y `respuesta_recibida`.
 
 ---
 
@@ -318,7 +359,11 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 | Ventas | POST | `/api/v1/ventas/` (acepta `descuento` / `recargo`) |
 | Ventas | GET | `/api/v1/ventas/?desde=&hasta=&metodo_pago=&estado=&cliente_id=&usuario_id=&limit=&offset=` → `{ items, total }` |
 | Ventas | GET | `/api/v1/ventas/{id}` |
-| Ventas | POST | `/api/v1/ventas/{id}/anular` 🔒 admin (body `{ motivo }`; 409 ya anulada) |
+| Ventas | POST | `/api/v1/ventas/{id}/anular` 🔒 admin (body `{ motivo }`; 409 ya anulada o con devoluciones MU010) |
+| Ventas | POST | `/api/v1/ventas/{id}/devoluciones` 🔒 admin (body `{ motivo, items:[{variante_id,cantidad}] }`; 409 MU008/MU009; 400 sin caja abierta) |
+| Configuración | GET | `/api/v1/configuracion` |
+| Configuración | PATCH | `/api/v1/configuracion` 🔒 admin |
+| Auditoría | GET | `/api/v1/auditoria/?desde=&hasta=&evento=&entidad=&usuario_id=&limit=&offset=` 🔒 admin → `{ items, total }` |
 | Caja | GET | `/api/v1/caja/estado` |
 | Caja | GET | `/api/v1/caja/resumen` (`null` si no hay sesión abierta) |
 | Caja | POST | `/api/v1/caja/apertura` |
@@ -333,6 +378,8 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 | Productos | PATCH | `/api/v1/productos/{id}` |
 | Productos | DELETE | `/api/v1/productos/{id}` 🔒 admin |
 | Productos | PATCH | `/api/v1/productos/inventario/stock` |
+| Productos | GET | `/api/v1/productos/stock-bajo` → `{ items, total }` |
+| Productos | PUT | `/api/v1/productos/{id}/categorias` 🔒 admin (body `{ categoria_ids }`) |
 | Variantes | GET | `/api/v1/productos/variante/{id}/movimientos?limit=&offset=` 🔒 admin |
 | Variantes | POST | `/api/v1/productos/variante` |
 | Variantes | PATCH | `/api/v1/productos/variante/{id}` |
@@ -350,6 +397,7 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 | Usuarios | GET | `/api/v1/usuarios/me` |
 | Usuarios | GET | `/api/v1/usuarios/` 🔒 admin |
 | Usuarios | GET | `/api/v1/usuarios/roles` 🔒 admin |
+| Usuarios | POST | `/api/v1/usuarios/` 🔒 admin (409 email repetido; 400 rol inexistente) |
 | Usuarios | PATCH | `/api/v1/usuarios/{id}/rol` 🔒 admin |
 
 ---
@@ -405,8 +453,8 @@ VentasTotalesReporte, ProductoTopReporte, CajaResumenDiario, CajaResumenReporte
 - ⚠️ **Stock en edición de variante:** El campo `stock_actual` está deshabilitado en el modal de edición porque el endpoint PATCH de variantes no lo acepta. Para ajustar stock se usa el endpoint `/api/v1/productos/inventario/stock`.
 - ✅ **Saldo de caja:** el efectivo esperado se obtiene de `GET /caja/resumen` e incluye las ventas en efectivo de la sesión.
 - ⚠️ **Métodos de pago:** Son strings estáticos (`'Efectivo'`, `'Tarjeta'`, `'QR'`). No son configurables desde la UI.
-- ℹ️ **Módulo Configuración:** El sidebar tiene un link a `/dashboard/settings` (`layout.tsx`) pero la página no existe.
-- ℹ️ **Categorías de productos:** El backend tiene la tabla `producto_categorias` (N:M) y el filtro `?categoria_id=`, pero `ProductCreate`/`ProductResponse` no tienen campo de categoría: desde la UI no se puede asignar una categoría a un producto.
+- ✅ **Configuración y categorías de productos:** ya existen (`/dashboard/settings`; categorías asignables desde el modal de producto).
+- ℹ️ **Tipos nuevos:** `BusinessSettings`/`BusinessSettingsUpdate` (configuracion), `SaleReturn`/`SaleReturnCreate`/`cantidad_devuelta`/`total_devuelto` (ventas), `LowStockItem`/`ProductCategory` (productos), `UsuarioCreate` (usuarios), `AuditEntry`/`AuditFilters` (auditoria), `VentaDia.bruto|devoluciones` y `VentasTotalesReporte.total_bruto|total_devoluciones` (reportes).
 - ℹ️ La búsqueda de productos en `/dashboard/productos` es **client-side** (filtra el array local). La búsqueda de clientes en `/dashboard/clientes` es **server-side** (llama al backend con el query).
 
 ### Backend (`admin-mu`)
