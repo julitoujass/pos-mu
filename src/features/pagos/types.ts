@@ -55,10 +55,14 @@ export type PaymentsFilters = {
 export type TerminalStatus = {
     proveedor: 'fake' | 'clover';
     habilitado: boolean;
+    /** The device answers. */
     conectado: boolean;
+    /** The Clover account is linked through OAuth. */
+    conectado_oauth?: boolean;
     /** Only present when the backend reports the saved values. */
     device_id?: string | null;
     pos_id?: string | null;
+    merchant_id?: string | null;
 };
 
 export type TerminalSettingsUpdate = {

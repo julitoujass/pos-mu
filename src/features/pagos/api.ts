@@ -48,3 +48,14 @@ export function fetchPayments(filters: PaymentsFilters = {}): Promise<PaymentsPa
 export function reconcilePayment(id: string): Promise<TerminalPayment> {
     return apiJson(`/pagos/${id}/conciliar`, 'Failed to reconcile payment', { method: 'POST' });
 }
+
+/** Admin only. URL where the owner authorizes this POS in Clover; the browser must navigate there. */
+export async function fetchCloverAuthorizeUrl(): Promise<string> {
+    const data = await apiJson<{ authorize_url: string }>('/integraciones/clover/conectar', 'Failed to start Clover connection');
+    return data.authorize_url;
+}
+
+/** Admin only. Unlinks the Clover account. */
+export function disconnectClover(): Promise<TerminalStatus> {
+    return apiJson('/integraciones/clover/desconectar', 'Failed to disconnect Clover', { method: 'POST' });
+}

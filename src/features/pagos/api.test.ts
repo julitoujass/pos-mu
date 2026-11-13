@@ -14,6 +14,8 @@ vi.mock('@/lib/supabase/client', () => ({
 
 import {
     cancelPayment,
+    disconnectClover,
+    fetchCloverAuthorizeUrl,
     fetchPayment,
     fetchPayments,
     fetchTerminalStatus,
@@ -109,5 +111,25 @@ describe('reconcilePayment', () => {
         const [url, init] = fetchMock.mock.calls[0]
         expect(url).toBe('/api/python/pagos/p1/conciliar')
         expect(init.method).toBe('POST')
+    })
+})
+
+describe('fetchCloverAuthorizeUrl', () => {
+    it('gets the authorize url', async () => {
+        fetchMock.mockResolvedValue(jsonResponse({ authorize_url: 'https://clover.test/oauth' }))
+        const url = await fetchCloverAuthorizeUrl()
+        expect(url).toBe('https://clover.test/oauth')
+        expect(fetchMock.mock.calls[0][0]).toBe('/api/python/integraciones/clover/conectar')
+    })
+})
+
+describe('disconnectClover', () => {
+    it('POSTs to /integraciones/clover/desconectar', async () => {
+        fetchMock.mockResolvedValue(jsonResponse({ proveedor: 'clover', habilitado: false, conectado: false, conectado_oauth: false }))
+        const status = await disconnectClover()
+        const [url, init] = fetchMock.mock.calls[0]
+        expect(url).toBe('/api/python/integraciones/clover/desconectar')
+        expect(init.method).toBe('POST')
+        expect(status.conectado_oauth).toBe(false)
     })
 })
