@@ -1,10 +1,14 @@
 'use client'
 
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Settings } from 'lucide-react'
+import { toast } from 'sonner'
 import { ErrorState } from '@/components/ui/error-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AdminOnly } from '@/features/auth'
 import { useTerminalStatus } from '@/features/pagos'
+import { cloverCallbackMessage } from '../clover-callback'
 import { useBusinessSettings } from '../hooks/use-business-settings'
 import { SettingsForm } from './settings-form'
 import { TerminalSettingsSection } from './terminal-settings-section'
@@ -20,6 +24,20 @@ export function SettingsPage() {
 function SettingsContent() {
     const { settings, setSettings, loading, error, reload } = useBusinessSettings()
     const terminal = useTerminalStatus()
+    const router = useRouter()
+    const { reload: reloadTerminal } = terminal
+
+    // Read the Clover callback result once, then clean the URL.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search)
+        const result = cloverCallbackMessage(params)
+        if (!result) return
+        if (result.type === 'success') toast.success(result.message)
+        else toast.error(result.message)
+        router.replace('/dashboard/settings')
+        reloadTerminal()
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot on mount
+    }, [])
 
     return (
         <div className="space-y-6">
